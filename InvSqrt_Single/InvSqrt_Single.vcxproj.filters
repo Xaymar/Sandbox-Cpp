@@ -29,7 +29,7 @@
     <ClCompile Include="stdafx.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="FloatMathSpeedTest.cpp">
+    <ClCompile Include="InvSqrt_Single.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
