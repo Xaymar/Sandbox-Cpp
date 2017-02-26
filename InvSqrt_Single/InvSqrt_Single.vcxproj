@@ -72,27 +72,27 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(SolutionDir)\#Build\$(ProjectName)\</OutDir>
+    <OutDir>$(SolutionDir)\#Build\$(ProjectName)\$(Configuration)\</OutDir>
     <TargetName>$(ProjectName)$(PlatformArchitecture)</TargetName>
-    <IntDir>$(SolutionDir)\#Intermediate\$(ProjectName)$(PlatformArchitecture)\</IntDir>
+    <IntDir>$(SolutionDir)\#Intermediate\$(ProjectName)\$(Configuration)$(PlatformArchitecture)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(SolutionDir)\#Build\$(ProjectName)\</OutDir>
+    <OutDir>$(SolutionDir)\#Build\$(ProjectName)\$(Configuration)\</OutDir>
     <TargetName>$(ProjectName)$(PlatformArchitecture)</TargetName>
-    <IntDir>$(SolutionDir)\#Intermediate\$(ProjectName)$(PlatformArchitecture)\</IntDir>
+    <IntDir>$(SolutionDir)\#Intermediate\$(ProjectName)\$(Configuration)$(PlatformArchitecture)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>$(SolutionDir)\#Build\$(ProjectName)\</OutDir>
+    <OutDir>$(SolutionDir)\#Build\$(ProjectName)\$(Configuration)\</OutDir>
     <TargetName>$(ProjectName)$(PlatformArchitecture)</TargetName>
-    <IntDir>$(SolutionDir)\#Intermediate\$(ProjectName)$(PlatformArchitecture)\</IntDir>
+    <IntDir>$(SolutionDir)\#Intermediate\$(ProjectName)\$(Configuration)$(PlatformArchitecture)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>$(SolutionDir)\#Build\$(ProjectName)\</OutDir>
+    <OutDir>$(SolutionDir)\#Build\$(ProjectName)\$(Configuration)\</OutDir>
     <TargetName>$(ProjectName)$(PlatformArchitecture)</TargetName>
-    <IntDir>$(SolutionDir)\#Intermediate\$(ProjectName)$(PlatformArchitecture)\</IntDir>
+    <IntDir>$(SolutionDir)\#Intermediate\$(ProjectName)\$(Configuration)$(PlatformArchitecture)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -162,7 +162,7 @@
       <WarningLevel>Level3</WarningLevel>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <Optimization>MaxSpeed</Optimization>
-      <FunctionLevelLinking>false</FunctionLevelLinking>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>
@@ -171,7 +171,7 @@
       <CompileAsManaged>false</CompileAsManaged>
       <CompileAsWinRT>false</CompileAsWinRT>
       <StringPooling>true</StringPooling>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <StructMemberAlignment>16Bytes</StructMemberAlignment>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <ControlFlowGuard>false</ControlFlowGuard>
@@ -180,10 +180,8 @@
       <CreateHotpatchableImage>false</CreateHotpatchableImage>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AssemblerOutput>NoListing</AssemblerOutput>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <ExceptionHandling>false</ExceptionHandling>
+      <ExceptionHandling>Sync</ExceptionHandling>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
     </ClCompile>
     <Link>
@@ -199,7 +197,7 @@
       <WarningLevel>Level3</WarningLevel>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <Optimization>MaxSpeed</Optimization>
-      <FunctionLevelLinking>false</FunctionLevelLinking>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>
@@ -208,7 +206,7 @@
       <CompileAsManaged>false</CompileAsManaged>
       <CompileAsWinRT>false</CompileAsWinRT>
       <StringPooling>true</StringPooling>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <StructMemberAlignment>16Bytes</StructMemberAlignment>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <ControlFlowGuard>false</ControlFlowGuard>
@@ -217,11 +215,9 @@
       <CreateHotpatchableImage>false</CreateHotpatchableImage>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AssemblerOutput>NoListing</AssemblerOutput>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <ExceptionHandling>false</ExceptionHandling>
-      <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <OmitFramePointers>false</OmitFramePointers>
     </ClCompile>
     <Link>

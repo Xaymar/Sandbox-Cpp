@@ -32,6 +32,9 @@
 *.VC.opendb
 *.VC.db
 *.suo
+*.vcxproj.user
+*.opensdf
+*.sdf
 Debug
 Release
 x64

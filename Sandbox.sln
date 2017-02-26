@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "InvSqrt_Double", "InvSqrt_D
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "InvSqrt_Single", "InvSqrt_Single\InvSqrt_Single.vcxproj", "{30E60682-2EFD-4D44-8223-AA3835867C0A}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "advmemcpy", "advmemcpy\advmemcpy.vcxproj", "{C34BE55C-29DB-46BB-847B-5BA2B4F68DC2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -31,6 +33,14 @@ Global
 		{30E60682-2EFD-4D44-8223-AA3835867C0A}.Release|x64.Build.0 = Release|x64
 		{30E60682-2EFD-4D44-8223-AA3835867C0A}.Release|x86.ActiveCfg = Release|Win32
 		{30E60682-2EFD-4D44-8223-AA3835867C0A}.Release|x86.Build.0 = Release|Win32
+		{C34BE55C-29DB-46BB-847B-5BA2B4F68DC2}.Debug|x64.ActiveCfg = Debug|x64
+		{C34BE55C-29DB-46BB-847B-5BA2B4F68DC2}.Debug|x64.Build.0 = Debug|x64
+		{C34BE55C-29DB-46BB-847B-5BA2B4F68DC2}.Debug|x86.ActiveCfg = Debug|Win32
+		{C34BE55C-29DB-46BB-847B-5BA2B4F68DC2}.Debug|x86.Build.0 = Debug|Win32
+		{C34BE55C-29DB-46BB-847B-5BA2B4F68DC2}.Release|x64.ActiveCfg = Release|x64
+		{C34BE55C-29DB-46BB-847B-5BA2B4F68DC2}.Release|x64.Build.0 = Release|x64
+		{C34BE55C-29DB-46BB-847B-5BA2B4F68DC2}.Release|x86.ActiveCfg = Release|Win32
+		{C34BE55C-29DB-46BB-847B-5BA2B4F68DC2}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
