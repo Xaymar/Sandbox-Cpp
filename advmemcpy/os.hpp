@@ -13,8 +13,8 @@ namespace os {
 		~Semaphore();
 
 		void notify(size_t count = 1);
-		void wait();
-		bool try_wait();
+		void wait(size_t count = 1);
+		bool try_wait(size_t count = 1);
 
 		private:
 		size_t m_Count;

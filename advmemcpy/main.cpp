@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <vector>
 #include <thread>
+#include <sstream>
 
 #include "memcpy_adv.h"
 
@@ -33,10 +34,10 @@ struct TimingInfo {
 };
 
 class Timing {
-	private:
+private:
 	TimingInfo* ti = nullptr;
 
-	public:
+public:
 	Timing(TimingInfo* p_ti) {
 		ti = p_ti;
 		ti->timeBegin = std::chrono::nanoseconds(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
@@ -84,7 +85,12 @@ int main(int argc, char** argv) {
 	size_t iterations = 10000;
 	size_t memorysize = 3840 * 2160 * 4; // A single 3840x2160 RGBA frame
 
-	#ifdef _WIN32
+	if (argc > 0) {
+		std::stringstream arg0(argv[0]);
+		arg0 >> memorysize;
+	}
+
+#ifdef _WIN32
 	//HANDLE hConsole = CreateConsoleScreenBuffer(GENERIC_READ | GENERIC_WRITE, 0, NULL, CONSOLE_TEXTMODE_BUFFER, NULL);
 	//SetConsoleActiveScreenBuffer(hConsole);
 	//SetStdHandle(STD_OUTPUT_HANDLE, hConsole);
@@ -94,7 +100,7 @@ int main(int argc, char** argv) {
 	//freopen("CONOUT$", "w", stdout);
 	//freopen("CONOUT$", "w", stderr);
 	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-	#endif
+#endif
 
 	std::cout << "Initializing..." << std::endl;
 	srand((unsigned int)std::chrono::high_resolution_clock::now().time_since_epoch().count());
@@ -117,36 +123,36 @@ int main(int argc, char** argv) {
 		ti_threads_env[t] = memcpy_thread_initialize(t);
 	}
 
-	#ifdef _WIN32
+#ifdef _WIN32
 	COORD cp; cp.X = 0; cp.Y = 0;
 	SetConsoleCursorPosition(hConsole, cp);
-	#endif
+#endif
 	formattedPrint(nullptr, nullptr);
 	for (size_t it = 0; it <= iterations; it++) {
-		#ifdef _WIN32
+#ifdef _WIN32
 		cp.X = 0; cp.Y = 2;
 		SetConsoleCursorPosition(hConsole, cp);
-		#endif
+#endif
 
 		void
 			*from = memory_from.data(),
 			*to = memory_to.data();
 
-		#define TEST(TEST_to, TEST_from, TEST_size, TEST_func, TEST_name, TEST_ti) { \
+#define TEST(TEST_to, TEST_from, TEST_size, TEST_func, TEST_name, TEST_ti) { \
 			std::memset(TEST_to, 0, TEST_size); \
-			{ \
+					{ \
 				Timing t(&TEST_ti); \
 				TEST_func(TEST_to, TEST_from, TEST_size); \
-			} \
+					} \
 			bool TEST_valid = true; \
 			uint8_t *TEST_vfrom = (uint8_t*)TEST_from, *TEST_vto = (uint8_t*)TEST_to; \
 			for (size_t TEST_p = 0; TEST_p < TEST_size; TEST_p++) { \
 				TEST_valid = TEST_valid && (TEST_vfrom[TEST_p] == TEST_vto[TEST_p]); \
-			} \
+						} \
 			if (TEST_valid) \
 				TEST_ti.validCalls++; \
 			formattedPrint(&TEST_ti, TEST_name); \
-		}
+				}
 
 		TEST(to, from, memorysize, memcpy_c, "C", ti_c);
 		TEST(to, from, memorysize, memcpy_cpp, "C++", ti_cpp);

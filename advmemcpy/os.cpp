@@ -18,27 +18,30 @@ void os::Semaphore::notify(size_t count) {
 	m_Count += count;
 	if (count == 1)
 		m_CondVar.notify_one();
-	else
+	else {
 		m_CondVar.notify_all();
+	}
 }
 
-void os::Semaphore::wait() {
+void os::Semaphore::wait(size_t count) {
 	std::unique_lock<std::mutex> lock(m_Mutex);
 	do {
+		if (m_Count > 0) { // Another thread may have been faster.
+			m_Count--;
+			count--;
+			if (count == 0)
+				return; // Jumps straight back to the old code
+		}
 		m_CondVar.wait(lock, [this] {
 			return (m_Count > 0);
 		});
-		if (m_Count > 0) { // Another thread may have been faster.
-			m_Count--;
-			return; // Jumps straight back to the old code
-		}
 	} while (true); // This should produce a cond-less jmp or reloc operation
 }
 
-bool os::Semaphore::try_wait() {
+bool os::Semaphore::try_wait(size_t count) {
 	std::unique_lock<std::mutex> lock(m_Mutex);
-	if (m_Count > 0) {
-		m_Count--;
+	if (m_Count >= count) {
+		m_Count -= count;
 		return true;
 	}
 	return false;
