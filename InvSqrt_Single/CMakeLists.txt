@@ -10,4 +10,11 @@ add_executable(InvSqrtSingle
     ${SOURCES} 
     ${HEADERS})
 
-target_link_libraries(InvSqrtSingle)
+SET(PLATFORM_LIBS)
+if(WIN32)
+	SET(PLATFORM_LIBS
+		winmm)
+endif()
+
+target_link_libraries(InvSqrtSingle
+	${PLATFORM_LIBS})
