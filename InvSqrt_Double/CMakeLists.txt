@@ -6,8 +6,8 @@ set(SOURCES
 
 set(HEADERS)
 
-add_executable(advmemcpy 
+add_executable(InvSqrtDouble 
     ${SOURCES} 
     ${HEADERS})
 
-target_link_libraries(advmemcpy)
+target_link_libraries(InvSqrtDouble)
