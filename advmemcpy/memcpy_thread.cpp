@@ -1,14 +1,12 @@
-#include "stdafx.h"
 #include "memcpy_adv.h"
 #include "os.hpp"
-#include "apex_memmove.h"
 
 #include <array>
 #include <vector>
 #include <queue>
 #include <iostream>
 
-size_t WORK_BLOCK_SIZE = 128 * 1024;
+size_t WORK_BLOCK_SIZE = 1024 * 1024;
 
 struct memcpy_task {
 	void* from = nullptr;
@@ -109,7 +107,17 @@ void* memcpy_thread(void* to, void* from, size_t size) {
 }
 
 void memcpy_thread_finalize(void* env) {
+	if (env == nullptr)
+		return;
+
 	memcpy_env* renv = (memcpy_env*)env;
+	renv->memcpy_threads_exit = true;
+	renv->memcpy_semaphore.notify(INT_MAX);
+	for (std::thread& thread : renv->memcpy_threads) {
+		thread.join();
+	}
+	renv->memcpy_threads.clear();
+	
 	// ToDo: Release any waiting memcpy_thread calls.
 	delete renv;
 }

@@ -1,8 +1,6 @@
 // advmemcpy.cpp : Defines the entry point for the console application.
 //
 
-#include "stdafx.h"
-
 #include <cstring>
 #include <chrono>
 #include <iostream>
@@ -12,6 +10,12 @@
 #include <vector>
 #include <thread>
 #include <sstream>
+#include <cstdio>
+
+#ifdef _WIN32
+#include <windows.h>
+#define snprintf sprintf_s
+#endif
 
 #include "memcpy_adv.h"
 
@@ -57,48 +61,85 @@ public:
 	}
 };
 
+size_t memorysize = 3840 * 2160 * 4; // A single 3840x2160 RGBA frame
+
 void formattedPrint(TimingInfo* ti, const char* name) {
 	if (ti == nullptr) {
 		std::cout <<
-			"| Name             | Calls    | Valid    | Average Time | Minimum Time | Maximum Time |" << std::endl;
+			"| Name             | Calls    | Valid    | Average Time | Minimum Time | Maximum Time | Bandwidth    |" << std::endl;
 		std::cout <<
-			"+------------------+----------+----------+--------------+--------------+--------------+" << std::endl;
+			"+------------------+----------+----------+--------------+--------------+--------------+--------------+" << std::endl;
 	} else {
 		std::vector<char> buf(1024);
-		sprintf_s(buf.data(), buf.size(),
-			"| %-16s | %8lld | %8lld | %9lld ns | %9lld ns | %9lld ns |",
+		snprintf(buf.data(), buf.size(),
+			"| %-16s | %8lld | %8lld | %9lld ns | %9lld ns | %9lld ns | %7lld mB/s |",
 			name,
 			ti->callAmount,
 			ti->validCalls,
 			(uint64_t)ti->averageCallTime,
 			ti->minimumCallTime,
-			ti->maximumCallTime);
+			ti->maximumCallTime,
+			(uint64_t)((((1000000000.0 / (double_t)ti->averageCallTime) * memorysize) / 1024) / 1024));
 		std::cout << buf.data() << std::endl;
 	}
 }
 
-#ifdef _WIN32
-#include "windows.h"
-#endif
+typedef void* (__cdecl*test_t)(void*, void*, size_t);
+void do_test(void* to, void* from, size_t size, test_t func, const char* name, TimingInfo& ti) {
+	std::memset(to, 0, size);
+	{
+		Timing t(&ti);
+		func(to, from, size);
+	}
+	if (std::memcmp(from, to, size) == 0)
+		ti.validCalls++;
+	formattedPrint(&ti, name);
+}
 
 int main(int argc, char** argv) {
-	size_t iterations = 10000;
-	size_t memorysize = 3840 * 2160 * 4; // A single 3840x2160 RGBA frame
+	size_t iterations = 100;
 
-	if (argc > 0) {
-		std::stringstream arg0(argv[0]);
-		arg0 >> memorysize;
+	size_t width = 3840,
+		height = 2160,
+		depth = 4;
+	size_t size = 0;
+
+	for (size_t argn = 0; argn < argc; argn++) {
+		std::string arg = std::string(argv[argn]);
+		if ((arg == "-w") || (arg == "--width")) {
+			argn++;
+			if (argn >= argc)
+				std::cerr << "Missing Width" << std::endl;
+			std::stringstream argss(argv[argn]);
+			argss >> width;
+		} else if ((arg == "-h") || (arg == "--height")) {
+			argn++;
+			if (argn >= argc)
+				std::cerr << "Missing Height" << std::endl;
+			std::stringstream argss(argv[argn]);
+			argss >> height;
+		} else if ((arg == "-d") || (arg == "--depth")) {
+			argn++;
+			if (argn >= argc)
+				std::cerr << "Missing Depth" << std::endl;
+			std::stringstream argss(argv[argn]);
+			argss >> depth;
+		} else if ((arg == "-s") || (arg == "--size")) {
+			argn++;
+			if (argn >= argc)
+				std::cerr << "Missing Size" << std::endl;
+			std::stringstream argss(argv[argn]);
+			width = height = depth = 0;
+			argss >> size;
+		}
 	}
+	if ((width != 0) && (height != 0) && (depth != 0)) {
+		size = width * height * depth;
+	}
+	memorysize = size;
+	std::cout << "Size: " << size << " byte (Width: " << width << ", Height: " << height << ", Depth: " << depth << ")" << std::endl;
 
 #ifdef _WIN32
-	//HANDLE hConsole = CreateConsoleScreenBuffer(GENERIC_READ | GENERIC_WRITE, 0, NULL, CONSOLE_TEXTMODE_BUFFER, NULL);
-	//SetConsoleActiveScreenBuffer(hConsole);
-	//SetStdHandle(STD_OUTPUT_HANDLE, hConsole);
-	//SetStdHandle(STD_ERROR_HANDLE, hConsole);
-	//SetStdHandle(STD_INPUT_HANDLE, hConsole);
-	//freopen("CONIN$", "r", stdin);
-	//freopen("CONOUT$", "w", stdout);
-	//freopen("CONOUT$", "w", stderr);
 	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
 #endif
 
@@ -128,39 +169,19 @@ int main(int argc, char** argv) {
 	SetConsoleCursorPosition(hConsole, cp);
 #endif
 	formattedPrint(nullptr, nullptr);
-	for (size_t it = 0; it <= iterations; it++) {
+	for (size_t it = 0; it < iterations; it++) {
 #ifdef _WIN32
 		cp.X = 0; cp.Y = 2;
 		SetConsoleCursorPosition(hConsole, cp);
 #endif
 
-		void
-			*from = memory_from.data(),
-			*to = memory_to.data();
-
-#define TEST(TEST_to, TEST_from, TEST_size, TEST_func, TEST_name, TEST_ti) { \
-			std::memset(TEST_to, 0, TEST_size); \
-					{ \
-				Timing t(&TEST_ti); \
-				TEST_func(TEST_to, TEST_from, TEST_size); \
-					} \
-			bool TEST_valid = true; \
-			uint8_t *TEST_vfrom = (uint8_t*)TEST_from, *TEST_vto = (uint8_t*)TEST_to; \
-			for (size_t TEST_p = 0; TEST_p < TEST_size; TEST_p++) { \
-				TEST_valid = TEST_valid && (TEST_vfrom[TEST_p] == TEST_vto[TEST_p]); \
-						} \
-			if (TEST_valid) \
-				TEST_ti.validCalls++; \
-			formattedPrint(&TEST_ti, TEST_name); \
-				}
-
-		TEST(to, from, memorysize, memcpy_c, "C", ti_c);
-		TEST(to, from, memorysize, memcpy_cpp, "C++", ti_cpp);
+		do_test(memory_to.data(), memory_from.data(), memorysize, (test_t)memcpy, "C", ti_c);
+		do_test(memory_to.data(), memory_from.data(), memorysize, (test_t)std::memcpy, "C++", ti_cpp);
 		for (size_t n = 2; n <= max_threads; n++) {
 			std::vector<char> name(1024);
-			sprintf_s(name.data(), name.size(), "C++ %u Threads", n);
+			sprintf_s(name.data(), name.size(), "C++ %lld Threads", n);
 			memcpy_thread_env(ti_threads_env[n]);
-			TEST(to, from, memorysize, memcpy_thread, name.data(), ti_threads[n]);
+			do_test(memory_to.data(), memory_from.data(), memorysize, memcpy_thread, name.data(), ti_threads[n]);
 		}
 	}
 
