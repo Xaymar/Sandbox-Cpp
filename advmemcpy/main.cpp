@@ -131,6 +131,12 @@ int main(int argc, char** argv) {
 			std::stringstream argss(argv[argn]);
 			width = height = depth = 0;
 			argss >> size;
+		} else if ((arg == "-i") || (arg == "--iterations")) {
+			argn++;
+			if (argn >= argc)
+				std::cerr << "Missing Iterations" << std::endl;
+			std::stringstream argss(argv[argn]);
+			argss >> iterations;
 		}
 	}
 	if ((width != 0) && (height != 0) && (depth != 0)) {
@@ -138,6 +144,7 @@ int main(int argc, char** argv) {
 	}
 	memorysize = size;
 	std::cout << "Size: " << size << " byte (Width: " << width << ", Height: " << height << ", Depth: " << depth << ")" << std::endl;
+	std::cout << "Iterations: " << iterations << std::endl;
 
 #ifdef _WIN32
 	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -164,14 +171,15 @@ int main(int argc, char** argv) {
 		ti_threads_env[t] = memcpy_thread_initialize(t);
 	}
 
-#ifdef _WIN32
-	COORD cp; cp.X = 0; cp.Y = 0;
-	SetConsoleCursorPosition(hConsole, cp);
-#endif
 	formattedPrint(nullptr, nullptr);
+	#ifdef _WIN32
+	COORD cp; cp.X = 0; cp.Y = 0;
+	CONSOLE_SCREEN_BUFFER_INFO info;
+	GetConsoleScreenBufferInfo(hConsole, &info);
+	#endif
 	for (size_t it = 0; it < iterations; it++) {
 #ifdef _WIN32
-		cp.X = 0; cp.Y = 2;
+		cp.X = 0; cp.Y = info.dwCursorPosition.Y;
 		SetConsoleCursorPosition(hConsole, cp);
 #endif
 
