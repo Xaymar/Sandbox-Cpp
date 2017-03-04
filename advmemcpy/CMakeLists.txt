@@ -16,5 +16,12 @@ add_executable(advmemcpy
     ${SOURCES} 
     ${HEADERS})
 
+SET(PLATFORM_LIBS)
+if(WIN32)
+	SET(PLATFORM_LIBS
+		winmm)
+endif()
+	
 target_link_libraries(advmemcpy
-    ${CMAKE_THREAD_LIBS_INIT})
+    ${CMAKE_THREAD_LIBS_INIT}
+	${PLATFORM_LIBS})

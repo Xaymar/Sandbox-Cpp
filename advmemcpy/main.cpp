@@ -148,6 +148,7 @@ int main(int argc, char** argv) {
 
 #ifdef _WIN32
 	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	timeBeginPeriod(1);
 #endif
 
 	std::cout << "Initializing..." << std::endl;
@@ -196,6 +197,10 @@ int main(int argc, char** argv) {
 	for (size_t t = 2; t <= max_threads; t++) {
 		memcpy_thread_finalize(ti_threads_env[t]);
 	}
+
+	#ifdef _WIN32
+	timeEndPeriod(1);
+	#endif
 
 	getchar();
 	return 0;
