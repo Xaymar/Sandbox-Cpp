@@ -14,8 +14,18 @@
 
 #ifdef _WIN32
 #include <windows.h>
-#define snprintf sprintf_s
 #endif
+
+#include <stdlib.h>
+#ifdef _MSV_VER
+#define aligned_alloc _aligned_malloc
+#define aligned_free _aligned_free
+#define snprintf sprintf_s
+#else
+#define aligned_free free
+#define snprintf(p1, p2, ...) sprintf(p1, __VA_ARGS__)
+#endif
+
 
 #include "memcpy_adv.h"
 
@@ -23,85 +33,94 @@
 #define memcpy_cpp std::memcpy
 
 struct TimingInfo {
+	friend class Timing;
+	protected:
+	std::chrono::high_resolution_clock::time_point _time;
+	public:
+	// All Time info in nanoseconds
 	uint64_t
-		timeBegin,
-		timeEnd,
-		timeTotal;
-	uint64_t
-		callAmount = 0,
-		minimumCallTime = UINT64_MAX,
-		maximumCallTime = 0,
-		totalCallTime = 0,
-		validCalls = 0;
+		TimeMinimum = UINT64_MAX,
+		TimeMaximum = 0,
+		TimeTotal = 0,
+		AmountCalled = 0,
+		AmountValid = 0;
 	double_t
-		averageCallTime = 0.0;
+		TimeAverage = 0.0;
 };
 
 class Timing {
-private:
+	private:
 	TimingInfo* ti = nullptr;
 
-public:
+	public:
 	Timing(TimingInfo* p_ti) {
 		ti = p_ti;
-		ti->timeBegin = std::chrono::nanoseconds(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+		ti->_time = std::chrono::high_resolution_clock::now();
 	}
 	~Timing() {
-		ti->timeEnd = std::chrono::nanoseconds(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-		ti->timeTotal = ti->timeEnd - ti->timeBegin;
-		ti->callAmount++;
-		ti->totalCallTime += ti->timeTotal;
+		auto hcnow = std::chrono::high_resolution_clock::now();
+		uint64_t time = (hcnow - ti->_time).count();
 
-		if (ti->timeTotal < ti->minimumCallTime)
-			ti->minimumCallTime = ti->timeTotal;
-		if (ti->timeTotal > ti->maximumCallTime)
-			ti->maximumCallTime = ti->timeTotal;
+		ti->AmountCalled++;
+		ti->TimeTotal += time;
 
-		ti->averageCallTime = (double_t)ti->totalCallTime / (double_t)ti->callAmount;
+		if (time < ti->TimeMinimum)
+			ti->TimeMinimum = time;
+		if (time > ti->TimeMaximum)
+			ti->TimeMaximum = time;
+
+		ti->TimeAverage = (double_t)ti->TimeTotal / (double_t)ti->AmountCalled;
 	}
 };
 
-size_t memorysize = 3840 * 2160 * 4; // A single 3840x2160 RGBA frame
-
-void formattedPrint(TimingInfo* ti, const char* name) {
+void formattedPrint(TimingInfo* ti, const char* name, size_t memsize) {
 	if (ti == nullptr) {
 		std::cout <<
-			"| Name             | Calls    | Valid    | Average Time | Minimum Time | Maximum Time | Bandwidth    |" << std::endl;
+			"| Name             | Calls    | Valid    | Average Time | Minimum Time | Maximum Time | Bandwidth            |" << std::endl;
 		std::cout <<
-			"+------------------+----------+----------+--------------+--------------+--------------+--------------+" << std::endl;
+			"+------------------+----------+----------+--------------+--------------+--------------+----------------------+" << std::endl;
 	} else {
+		size_t totalMemoryCopied = ti->AmountCalled * memsize;
+		double_t byte_per_second = (double_t)totalMemoryCopied / ((double_t)ti->TimeTotal / 1000000000.0);
+
 		std::vector<char> buf(1024);
 		snprintf(buf.data(), buf.size(),
-			"| %-16s | %8lld | %8lld | %9lld ns | %9lld ns | %9lld ns | %7lld mB/s |",
+			"| %-16s | %8lld | %8lld | %9lld ns | %9lld ns | %9lld ns | %16lld B/s |",
 			name,
-			ti->callAmount,
-			ti->validCalls,
-			(uint64_t)ti->averageCallTime,
-			ti->minimumCallTime,
-			ti->maximumCallTime,
-			(uint64_t)((((1000000000.0 / (double_t)ti->averageCallTime) * memorysize) / 1024) / 1024));
+			ti->AmountCalled,
+			ti->AmountValid,
+			(uint64_t)ti->TimeAverage,
+			ti->TimeMinimum,
+			ti->TimeMaximum,
+			(uint64_t)byte_per_second);
 		std::cout << buf.data() << std::endl;
 	}
 }
 
 typedef void* (__cdecl*test_t)(void*, void*, size_t);
-void do_test(void* to, void* from, size_t size, test_t func, const char* name, TimingInfo& ti) {
-	std::memset(to, 0, size);
-	{
-		Timing t(&ti);
-		func(to, from, size);
+void do_test(void* to, void* from, size_t size, test_t func, const char* name, TimingInfo& ti, size_t iter) {
+	unsigned char* pto = (unsigned char*)to;
+	while (iter > 0) {
+		iter--;
+		pto++;
+
+		std::memset(pto, 0, size);
+		{
+			Timing t(&ti);
+			func(pto, from, size);
+		}
+		if (std::memcmp(from, pto, size) == 0)
+			ti.AmountValid++;
 	}
-	if (std::memcmp(from, to, size) == 0)
-		ti.validCalls++;
-	formattedPrint(&ti, name);
+	formattedPrint(&ti, name, size);
+}
+void do_print(const char* name, TimingInfo& ti, size_t size) {
+	formattedPrint(&ti, name, size);
 }
 
 int main(int argc, char** argv) {
 	size_t iterations = 100;
-
-	size_t width = 3840,
-		height = 2160,
-		depth = 4;
+	size_t width = 3840, height = 2160, depth = 4;
 	size_t size = 0;
 
 	for (size_t argn = 0; argn < argc; argn++) {
@@ -139,64 +158,64 @@ int main(int argc, char** argv) {
 			argss >> iterations;
 		}
 	}
-	if ((width != 0) && (height != 0) && (depth != 0)) {
+	//if ((width != 0) && (height != 0) && (depth != 0)) {
+	if (size == 0)
 		size = width * height * depth;
-	}
-	memorysize = size;
 	std::cout << "Size: " << size << " byte (Width: " << width << ", Height: " << height << ", Depth: " << depth << ")" << std::endl;
 	std::cout << "Iterations: " << iterations << std::endl;
 
-#ifdef _WIN32
-	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	#ifdef _WIN32
 	timeBeginPeriod(1);
-#endif
+	//SetThreadAffinityMask(GetCurrentThread(), 0x1);
+	SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS);
+	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
+	#else
+	#endif
 
 	std::cout << "Initializing..." << std::endl;
 	srand((unsigned int)std::chrono::high_resolution_clock::now().time_since_epoch().count());
-	std::vector<char> memory_from(memorysize);
-	std::vector<char> memory_to(memorysize);
-	for (size_t p = 0; p < memorysize; p++) {
+	char* memory_from = new char[size + iterations];
+	char* memory_to = new char[size + iterations];
+	for (size_t p = 0; p < size + iterations; p++) {
 		// Ensure memory is randomized.
 		memory_from[p] = (char)rand();
 	}
-	std::memset(memory_to.data(), 0, memory_to.size());
+	std::memset(memory_to, 0, size + iterations);
 
 	const size_t max_threads = 8;
-	TimingInfo
-		ti_c,
-		ti_cpp;
-	TimingInfo ti_threads[max_threads + 1];
-	void *ti_threads_env[max_threads + 1];
-
+	void* ti_threads_env[max_threads + 1];
 	for (size_t t = 2; t <= max_threads; t++) {
 		ti_threads_env[t] = memcpy_thread_initialize(t);
 	}
 
-	formattedPrint(nullptr, nullptr);
-	#ifdef _WIN32
-	COORD cp; cp.X = 0; cp.Y = 0;
-	CONSOLE_SCREEN_BUFFER_INFO info;
-	GetConsoleScreenBufferInfo(hConsole, &info);
-	#endif
-	for (size_t it = 0; it < iterations; it++) {
-#ifdef _WIN32
-		cp.X = 0; cp.Y = info.dwCursorPosition.Y;
-		SetConsoleCursorPosition(hConsole, cp);
-#endif
+	formattedPrint(nullptr, nullptr, 0);
 
-		do_test(memory_to.data(), memory_from.data(), memorysize, (test_t)memcpy, "C", ti_c);
-		do_test(memory_to.data(), memory_from.data(), memorysize, (test_t)std::memcpy, "C++", ti_cpp);
-		for (size_t n = 2; n <= max_threads; n++) {
+	//for (size_t n = 16384; n < size; n <<= 1) {
+	//	std::cout << "Block Size: " << n << std::endl;
+	size_t n = size;
+		TimingInfo
+			ti_c,
+			ti_cpp,
+			ti_movsb;
+		//TimingInfo ti_threads[max_threads + 1];
+		do_test(memory_to, memory_from, n, (test_t)memcpy, "C", ti_c, iterations);
+		do_test(memory_to, memory_from, n, (test_t)std::memcpy, "C++", ti_cpp, iterations);
+		do_test(memory_to, memory_from, n, (test_t)memcpy_movsb, "MOVSB", ti_movsb, iterations);
+		for (size_t n2 = 2; n2 <= max_threads; n2++) {
+			TimingInfo ti_thread;
 			std::vector<char> name(1024);
-			sprintf_s(name.data(), name.size(), "C++ %lld Threads", n);
-			memcpy_thread_env(ti_threads_env[n]);
-			do_test(memory_to.data(), memory_from.data(), memorysize, memcpy_thread, name.data(), ti_threads[n]);
+			snprintf(name.data(), name.size(), "MT: %lld Threads", n2);
+			memcpy_thread_env(ti_threads_env[n2]);
+			do_test(memory_to, memory_from, n, memcpy_thread, name.data(), ti_thread, iterations);
 		}
-	}
+	//}
 
 	for (size_t t = 2; t <= max_threads; t++) {
 		memcpy_thread_finalize(ti_threads_env[t]);
 	}
+
+	delete[] memory_to;
+	delete[] memory_from;
 
 	#ifdef _WIN32
 	timeEndPeriod(1);
@@ -204,5 +223,5 @@ int main(int argc, char** argv) {
 
 	getchar();
 	return 0;
-}
+	}
 

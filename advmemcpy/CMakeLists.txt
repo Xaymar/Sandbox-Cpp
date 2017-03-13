@@ -3,18 +3,20 @@ project(advmemcpy)
 
 find_package (Threads)
 
-set(SOURCES 
-    main.cpp
-    os.cpp
-    memcpy_thread.cpp)
-
 set(HEADERS 
-    os.hpp
-    memcpy_adv.h)
+    "os.hpp" 
+    "memcpy_adv.h" 
+)
+set(SOURCES 
+    "main.cpp" 
+    "os.cpp" 
+    "memcpy_thread.cpp" 
+)
 
 add_executable(advmemcpy 
     ${SOURCES} 
-    ${HEADERS})
+    ${HEADERS}
+)
 
 SET(PLATFORM_LIBS)
 if(WIN32)
