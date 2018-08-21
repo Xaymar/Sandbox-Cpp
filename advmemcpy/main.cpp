@@ -176,13 +176,13 @@ int main(int argc, char** argv) {
 	srand((unsigned int)std::chrono::high_resolution_clock::now().time_since_epoch().count());
 	char* memory_from = new char[size + iterations];
 	char* memory_to = new char[size + iterations];
-	for (size_t p = 0; p < size + iterations; p++) {
-		// Ensure memory is randomized.
-		memory_from[p] = (char)rand();
-	}
+	//for (size_t p = 0; p < size + iterations; p++) {
+	//	// Ensure memory is randomized.
+	//	memory_from[p] = (char)rand();
+	//}
 	std::memset(memory_to, 0, size + iterations);
 
-	const size_t max_threads = 8;
+	const size_t max_threads = 32;
 	void* ti_threads_env[max_threads + 1];
 	for (size_t t = 2; t <= max_threads; t++) {
 		ti_threads_env[t] = memcpy_thread_initialize(t);
@@ -190,9 +190,9 @@ int main(int argc, char** argv) {
 
 	formattedPrint(nullptr, nullptr, 0);
 
-	//for (size_t n = 16384; n < size; n <<= 1) {
-	//	std::cout << "Block Size: " << n << std::endl;
-	size_t n = size;
+	for (size_t n = 16384; n < size; n <<= 1) {
+		std::cout << "Block Size: " << n << std::endl;
+	//size_t n = size;
 		TimingInfo
 			ti_c,
 			ti_cpp,
@@ -208,7 +208,7 @@ int main(int argc, char** argv) {
 			memcpy_thread_env(ti_threads_env[n2]);
 			do_test(memory_to, memory_from, n, memcpy_thread, name.data(), ti_thread, iterations);
 		}
-	//}
+	}
 
 	for (size_t t = 2; t <= max_threads; t++) {
 		memcpy_thread_finalize(ti_threads_env[t]);
