@@ -1,0 +1,1 @@
+add_subdirectory(aligned_storage)
