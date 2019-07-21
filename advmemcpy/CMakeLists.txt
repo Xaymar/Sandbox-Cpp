@@ -11,6 +11,11 @@ set(SOURCES
     "main.cpp" 
     "os.cpp" 
     "memcpy_thread.cpp" 
+	"measurer.hpp"
+	"measurer.cpp"
+	"apex_memmove.h"
+	"apex_memmove.c"
+	"apex_memmove.cpp"
 )
 
 add_executable(advmemcpy 

@@ -1,227 +1,152 @@
 // advmemcpy.cpp : Defines the entry point for the console application.
 //
 
-#include <cstring>
 #include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <iomanip>
 #include <iostream>
-#include <memory.h>
-#include <random>
-#include <stdint.h>
+#include <map>
+#include <string>
+#include <unordered_map>
 #include <vector>
-#include <thread>
-#include <sstream>
-#include <cstdio>
 
-#ifdef _WIN32
-#include <windows.h>
-#endif
-
-#include <stdlib.h>
-#ifdef _MSV_VER
-#define aligned_alloc _aligned_malloc
-#define aligned_free _aligned_free
-#define snprintf sprintf_s
-#else
-#define aligned_free free
-#define snprintf(p1, p2, ...) sprintf(p1, __VA_ARGS__)
-#endif
-
-
+#include "apex_memmove.h"
+#include "measurer.hpp"
 #include "memcpy_adv.h"
 
-#define memcpy_c memcpy
-#define memcpy_cpp std::memcpy
+#define MEASURE_THRESHOLD_NANOSECONDS 1
+#define MEASURE_TEST_CYCLES 10000
 
-struct TimingInfo {
-	friend class Timing;
-	protected:
-	std::chrono::high_resolution_clock::time_point _time;
-	public:
-	// All Time info in nanoseconds
-	uint64_t
-		TimeMinimum = UINT64_MAX,
-		TimeMaximum = 0,
-		TimeTotal = 0,
-		AmountCalled = 0,
-		AmountValid = 0;
-	double_t
-		TimeAverage = 0.0;
+#define SIZE(W, H, C, N) \
+	{ \
+		W *H *C, N \
+	}
+
+using namespace std;
+
+std::map<size_t, std::string> test_sizes{
+	SIZE(1280, 720, 4, "720 RGBA"),
+	// Stop that clang-format
+	SIZE(1280, 720, 3, "720 I444"),
+	SIZE(1280, 720, 2, "720 I420"),
+	SIZE(1920, 1080, 4, "1080 RGBA"),
+	SIZE(1920, 1080, 3, "1080 I444"),
+	SIZE(1920, 1080, 2, "1080 I420"),
+	SIZE(2560, 1440, 4, "1440 RGBA"),
+	SIZE(2560, 1440, 3, "1440 I444"),
+	SIZE(2560, 1440, 2, "1440 I420"),
+	SIZE(3840, 2160, 4, "2160 RGBA"),
+	SIZE(3840, 2160, 3, "2160 I444"),
+	SIZE(3840, 2160, 2, "2160 I420"),
 };
 
-class Timing {
-	private:
-	TimingInfo* ti = nullptr;
-
-	public:
-	Timing(TimingInfo* p_ti) {
-		ti = p_ti;
-		ti->_time = std::chrono::high_resolution_clock::now();
-	}
-	~Timing() {
-		auto hcnow = std::chrono::high_resolution_clock::now();
-		uint64_t time = (hcnow - ti->_time).count();
-
-		ti->AmountCalled++;
-		ti->TimeTotal += time;
-
-		if (time < ti->TimeMinimum)
-			ti->TimeMinimum = time;
-		if (time > ti->TimeMaximum)
-			ti->TimeMaximum = time;
-
-		ti->TimeAverage = (double_t)ti->TimeTotal / (double_t)ti->AmountCalled;
-	}
+std::map<std::string, std::function<void*(void* to, void* from, size_t size)>> functions{
+	{ "memcpy", &std::memcpy },
+	{ "movsb", &memcpy_movsb },
+	{ "movsw", &memcpy_movsw },
+	{ "movsd", &memcpy_movsd },
+	{ "movsq", &memcpy_movsq },
+	{ "apex_memcpy", [](void* t, void* f, size_t s) { return apex::memcpy(t, f, s); } },
+	{ "advmemcpy", &memcpy_thread },
+	{ "advmemcpy_apex", &memcpy_thread },
 };
 
-void formattedPrint(TimingInfo* ti, const char* name, size_t memsize) {
-	if (ti == nullptr) {
-		std::cout <<
-			"| Name             | Calls    | Valid    | Average Time | Minimum Time | Maximum Time | Bandwidth            |" << std::endl;
-		std::cout <<
-			"+------------------+----------+----------+--------------+--------------+--------------+----------------------+" << std::endl;
-	} else {
-		size_t totalMemoryCopied = ti->AmountCalled * memsize;
-		double_t byte_per_second = (double_t)totalMemoryCopied / ((double_t)ti->TimeTotal / 1000000000.0);
+std::map<std::string, std::function<void()>> initializers{
+	{ "advmemcpy", []() { memcpy_thread_set_memcpy(std::memcpy); } },
+	{ "advmemcpy_apex", []() { memcpy_thread_set_memcpy(apex::memcpy); } },
+	{ "apex_memcpy", []() { apex::memcpy(0, 0, 0); } },
+};
 
-		std::vector<char> buf(1024);
-		snprintf(buf.data(), buf.size(),
-			"| %-16s | %8lld | %8lld | %9lld ns | %9lld ns | %9lld ns | %16lld B/s |",
-			name,
-			ti->AmountCalled,
-			ti->AmountValid,
-			(uint64_t)ti->TimeAverage,
-			ti->TimeMinimum,
-			ti->TimeMaximum,
-			(uint64_t)byte_per_second);
-		std::cout << buf.data() << std::endl;
-	}
-}
+int32_t main(int32_t argc, const char* argv[])
+{
+	std::vector<char> buf_from, buf_to;
+	buf_from.resize(1);
+	buf_to.resize(1);
 
-typedef void* (__cdecl*test_t)(void*, void*, size_t);
-void do_test(void* to, void* from, size_t size, test_t func, const char* name, TimingInfo& ti, size_t iter) {
-	unsigned char* pto = (unsigned char*)to;
-	while (iter > 0) {
-		iter--;
-		pto++;
+	auto amcenv = memcpy_thread_initialize(std::thread::hardware_concurrency());
+	memcpy_thread_env(amcenv);
+	apex::memcpy(buf_to.data(), buf_from.data(), 1);
 
-		std::memset(pto, 0, size);
-		{
-			Timing t(&ti);
-			func(pto, from, size);
+	for (auto test : test_sizes) {
+		std::cout << "Testing '" << test.second << "' ( " << (test.first) << " B )..." << std::endl;
+
+		buf_from.resize(test.first);
+		buf_to.resize(test.first);
+
+		void*  from = buf_from.data();
+		void*  to   = buf_to.data();
+		size_t size = test.first;
+
+		// Name            |       KB/s | 95.0% KB/s | 99.0% KB/s | 99.9% KB/s
+		// ----------------+------------+------------+------------+------------
+
+		std::cout << "Name            | Avg.  MB/s | 95.0% MB/s | 99.0% MB/s | 99.9% MB/s " << std::endl
+		          << "----------------+------------+------------+------------+------------" << std::endl;
+
+		for (auto func : functions) {
+			measurer measure;
+
+			auto inits = initializers.find(func.first);
+			if (inits != initializers.end()) {
+				inits->second();
+			}
+
+			std::cout << setw(16) << setiosflags(ios::left) << func.first;
+			std::cout << setw(0) << resetiosflags(ios::left) << "|" << std::flush;
+
+			// Measure initial latency.
+			std::chrono::nanoseconds threshold_val;
+			{
+				auto tp_here = std::chrono::high_resolution_clock::now();
+				func.second(to, from, size);
+				auto tp_there = std::chrono::high_resolution_clock::now();
+				threshold_val = tp_there - tp_here;
+			}
+
+			if (threshold_val < std::chrono::nanoseconds(MEASURE_THRESHOLD_NANOSECONDS)) {
+				// Measure the entire loop.
+				auto tracker = measure.track();
+				for (size_t idx = 0; idx < MEASURE_TEST_CYCLES; idx++) {
+					func.second(to, from, size);
+				}
+			} else {
+				// Measure only the call itself.
+				for (size_t idx = 0; idx < MEASURE_TEST_CYCLES; idx++) {
+					auto tracker = measure.track();
+					func.second(to, from, size);
+				}
+			}
+
+			double_t size_kb   = (static_cast<double_t>(test.first) / 1024 / 1024);
+			auto     time_avg  = measure.average_duration();
+			auto     time_950  = measure.percentile(0.95);
+			auto     time_990  = measure.percentile(0.99);
+			auto     time_999  = measure.percentile(0.999);
+			double_t kbyte_avg = size_kb / (static_cast<double_t>(time_avg) / 1000000000);
+			double_t kbyte_950 = size_kb / (static_cast<double_t>(time_950.count()) / 1000000000);
+			double_t kbyte_990 = size_kb / (static_cast<double_t>(time_990.count()) / 1000000000);
+			double_t kbyte_999 = size_kb / (static_cast<double_t>(time_999.count()) / 1000000000);
+
+			std::cout << setw(11) << setprecision(2) << setiosflags(ios::right) << std::fixed << kbyte_avg
+			          << setw(0) << resetiosflags(ios::right) << " |" << std::flush;
+			std::cout << setw(11) << setprecision(2) << setiosflags(ios::right) << std::fixed << kbyte_950
+			          << setw(0) << resetiosflags(ios::right) << " |" << std::flush;
+			std::cout << setw(11) << setprecision(2) << setiosflags(ios::right) << std::fixed << kbyte_990
+			          << setw(0) << resetiosflags(ios::right) << " |" << std::flush;
+			std::cout << setw(11) << setprecision(2) << setiosflags(ios::right) << std::fixed << kbyte_999
+			          << setw(0) << resetiosflags(ios::right);
+
+			std::cout << std::defaultfloat << std::endl;
 		}
-		if (std::memcmp(from, pto, size) == 0)
-			ti.AmountValid++;
-	}
-	formattedPrint(&ti, name, size);
-}
-void do_print(const char* name, TimingInfo& ti, size_t size) {
-	formattedPrint(&ti, name, size);
-}
 
-int main(int argc, char** argv) {
-	size_t iterations = 100;
-	size_t width = 3840, height = 2160, depth = 4;
-	size_t size = 0;
-
-	for (size_t argn = 0; argn < argc; argn++) {
-		std::string arg = std::string(argv[argn]);
-		if ((arg == "-w") || (arg == "--width")) {
-			argn++;
-			if (argn >= argc)
-				std::cerr << "Missing Width" << std::endl;
-			std::stringstream argss(argv[argn]);
-			argss >> width;
-		} else if ((arg == "-h") || (arg == "--height")) {
-			argn++;
-			if (argn >= argc)
-				std::cerr << "Missing Height" << std::endl;
-			std::stringstream argss(argv[argn]);
-			argss >> height;
-		} else if ((arg == "-d") || (arg == "--depth")) {
-			argn++;
-			if (argn >= argc)
-				std::cerr << "Missing Depth" << std::endl;
-			std::stringstream argss(argv[argn]);
-			argss >> depth;
-		} else if ((arg == "-s") || (arg == "--size")) {
-			argn++;
-			if (argn >= argc)
-				std::cerr << "Missing Size" << std::endl;
-			std::stringstream argss(argv[argn]);
-			width = height = depth = 0;
-			argss >> size;
-		} else if ((arg == "-i") || (arg == "--iterations")) {
-			argn++;
-			if (argn >= argc)
-				std::cerr << "Missing Iterations" << std::endl;
-			std::stringstream argss(argv[argn]);
-			argss >> iterations;
-		}
-	}
-	//if ((width != 0) && (height != 0) && (depth != 0)) {
-	if (size == 0)
-		size = width * height * depth;
-	std::cout << "Size: " << size << " byte (Width: " << width << ", Height: " << height << ", Depth: " << depth << ")" << std::endl;
-	std::cout << "Iterations: " << iterations << std::endl;
-
-	#ifdef _WIN32
-	timeBeginPeriod(1);
-	//SetThreadAffinityMask(GetCurrentThread(), 0x1);
-	SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS);
-	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-	#else
-	#endif
-
-	std::cout << "Initializing..." << std::endl;
-	srand((unsigned int)std::chrono::high_resolution_clock::now().time_since_epoch().count());
-	char* memory_from = new char[size + iterations];
-	char* memory_to = new char[size + iterations];
-	//for (size_t p = 0; p < size + iterations; p++) {
-	//	// Ensure memory is randomized.
-	//	memory_from[p] = (char)rand();
-	//}
-	std::memset(memory_to, 0, size + iterations);
-
-	const size_t max_threads = 32;
-	void* ti_threads_env[max_threads + 1];
-	for (size_t t = 2; t <= max_threads; t++) {
-		ti_threads_env[t] = memcpy_thread_initialize(t);
+		// Split results
+		std::cout << std::endl << std::endl;
 	}
 
-	formattedPrint(nullptr, nullptr, 0);
+	memcpy_thread_finalize(amcenv);
 
-	for (size_t n = 16384; n < size; n <<= 1) {
-		std::cout << "Block Size: " << n << std::endl;
-	//size_t n = size;
-		TimingInfo
-			ti_c,
-			ti_cpp,
-			ti_movsb;
-		//TimingInfo ti_threads[max_threads + 1];
-		do_test(memory_to, memory_from, n, (test_t)memcpy, "C", ti_c, iterations);
-		do_test(memory_to, memory_from, n, (test_t)std::memcpy, "C++", ti_cpp, iterations);
-		do_test(memory_to, memory_from, n, (test_t)memcpy_movsb, "MOVSB", ti_movsb, iterations);
-		for (size_t n2 = 2; n2 <= max_threads; n2++) {
-			TimingInfo ti_thread;
-			std::vector<char> name(1024);
-			snprintf(name.data(), name.size(), "MT: %lld Threads", n2);
-			memcpy_thread_env(ti_threads_env[n2]);
-			do_test(memory_to, memory_from, n, memcpy_thread, name.data(), ti_thread, iterations);
-		}
-	}
-
-	for (size_t t = 2; t <= max_threads; t++) {
-		memcpy_thread_finalize(ti_threads_env[t]);
-	}
-
-	delete[] memory_to;
-	delete[] memory_from;
-
-	#ifdef _WIN32
-	timeEndPeriod(1);
-	#endif
-
-	getchar();
+	std::cin.get();
 	return 0;
-	}
-
+}
