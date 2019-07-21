@@ -34,7 +34,7 @@ inline uint64_t PowLog10BasedFPOT(uint64_t size) {
 }
 
 int main(int argc, char* argv[]) {
-	const uint64_t loops = 10000000;
+	const uint64_t loops = 1000000;
 	std::chrono::high_resolution_clock::time_point start;
 	std::chrono::high_resolution_clock::time_point end;
 	std::chrono::high_resolution_clock::duration timeTaken;
@@ -56,31 +56,45 @@ int main(int argc, char* argv[]) {
 		totalLoop = totalLog10 = totalPow = totalBSR = 0;
 		valueBSR = valueLoop = valueLog10 = valuePow = 0;
 
+		start = std::chrono::high_resolution_clock::now();
+#pragma unroll
+#pragma loop(ivdep)
 		for (uint64_t n = 0; n < loops; n++) {
-			start = std::chrono::high_resolution_clock::now();
 			valueBSR += BSRFPOT(s);
-			end = std::chrono::high_resolution_clock::now();
-			timeTaken = end - start;
-			totalBSR += timeTaken.count();
-
-			start = std::chrono::high_resolution_clock::now();
-			valueLoop += LoopBasedFPOT(s);
-			end = std::chrono::high_resolution_clock::now();
-			timeTaken = end - start;
-			totalLoop += timeTaken.count();
-
-			start = std::chrono::high_resolution_clock::now();
-			valueLog10 += Log10BasedFPOT(s);
-			end = std::chrono::high_resolution_clock::now();
-			timeTaken = end - start;
-			totalLog10 += timeTaken.count();
-
-			start = std::chrono::high_resolution_clock::now();
-			valuePow += PowLog10BasedFPOT(s);
-			end = std::chrono::high_resolution_clock::now();
-			timeTaken = end - start;
-			totalPow += timeTaken.count();
 		}
+		end = std::chrono::high_resolution_clock::now();
+		timeTaken = end - start;
+		totalBSR += timeTaken.count();
+
+		start = std::chrono::high_resolution_clock::now();
+#pragma unroll
+#pragma loop(ivdep)
+		for (uint64_t n = 0; n < loops; n++) {
+			valueLoop += LoopBasedFPOT(s);
+		}
+		end = std::chrono::high_resolution_clock::now();
+		timeTaken = end - start;
+		totalLoop += timeTaken.count();
+
+		start = std::chrono::high_resolution_clock::now();
+#pragma unroll
+#pragma loop(ivdep)
+		for (uint64_t n = 0; n < loops; n++) {
+			valueLog10 += Log10BasedFPOT(s);
+		}
+		end = std::chrono::high_resolution_clock::now();
+		timeTaken = end - start;
+		totalLog10 += timeTaken.count();
+
+		start = std::chrono::high_resolution_clock::now();
+#pragma unroll
+#pragma loop(ivdep)
+		for (uint64_t n = 0; n < loops; n++) {
+			valuePow += PowLog10BasedFPOT(s);
+		}
+		end = std::chrono::high_resolution_clock::now();
+		timeTaken = end - start;
+		totalPow += timeTaken.count();
 
 		printf("Size %ld\n", s);
 		printf("BSR   | Total: %16lld | Average: %8.8lf | Value %16lld\n", totalBSR, double(totalBSR) / loops, uint64_t(double(valueBSR) / loops));
