@@ -1,5 +1,7 @@
-cmake_minimum_required(VERSION 2.8)
-project(advmemcpy)
+cmake_minimum_required(VERSION 3.2)
+project(advmemcpy VERSION 1.0.0.0)
+
+add_subdirectory(asmlib)
 
 find_package (Threads)
 
@@ -31,4 +33,6 @@ endif()
 	
 target_link_libraries(advmemcpy
     ${CMAKE_THREAD_LIBS_INIT}
-	${PLATFORM_LIBS})
+	${PLATFORM_LIBS}
+	asmlib
+)
