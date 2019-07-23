@@ -1,6 +1,7 @@
 // advmemcpy.cpp : Defines the entry point for the console application.
 //
 
+#include <asmlib.h>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -11,13 +12,14 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include <asmlib.h>
+#include <intrin.h>
 #include "apex_memmove.h"
 #include "measurer.hpp"
 #include "memcpy_adv.h"
 
-#define MEASURE_TEST_CYCLES 50000
+#undef max
+
+#define MEASURE_TEST_CYCLES 1000
 
 #define SIZE(W, H, C, N) \
 	{ \
@@ -158,77 +160,70 @@ class aligned_allocator {
 };
 
 std::map<size_t, std::string> test_sizes{
-	SIZE(1, 1, 1024, "1KB"),
-	// Stop that clang-format
-	//SIZE(1, 2, 1024, "2KB"),
-	//SIZE(1, 4, 1024, "4KB"),
-	//SIZE(1, 8, 1024, "8KB"),
-	SIZE(1, 16, 1024, "16KB"),
-	//SIZE(1, 32, 1024, "32KB"),
-	//SIZE(1, 64, 1024, "64KB"),
-	//SIZE(1, 128, 1024, "128KB"),
-	SIZE(1, 256, 1024, "256KB"),
-	//SIZE(1, 512, 1024, "512KB"),
-	//SIZE(1, 1024, 1024, "1MB"),
-	//SIZE(2, 1024, 1024, "2MB"),
-	SIZE(4, 1024, 1024, "4MB"),
-	SIZE(8, 1024, 1024, "8MB"),
-	SIZE(16, 1024, 1024, "16MB"),
-	SIZE(32, 1024, 1024, "32MB"),
-	SIZE(64, 1024, 1024, "64MB"),
+    //SIZE(1, 1, 1024, "1KB"),
+    //SIZE(1, 2, 1024, "2KB"),
+    //SIZE(1, 4, 1024, "4KB"),
+    //SIZE(1, 8, 1024, "8KB"),
+    //SIZE(1, 16, 1024, "16KB"),
+    //SIZE(1, 32, 1024, "32KB"),
+    //SIZE(1, 64, 1024, "64KB"),
+    //SIZE(1, 128, 1024, "128KB"),
+    //SIZE(1, 256, 1024, "256KB"),
+    //SIZE(1, 512, 1024, "512KB"),
+    //SIZE(1, 1024, 1024, "1MB"),   SIZE(2, 1024, 1024, "2MB"),   SIZE(3, 1024, 1024, "2MB"),
+    //SIZE(4, 1024, 1024, "4MB"),   SIZE(5, 1024, 1024, "8MB"),   SIZE(6, 1024, 1024, "8MB"),
+    //SIZE(7, 1024, 1024, "8MB"),   SIZE(8, 1024, 1024, "8MB"),   SIZE(16, 1024, 1024, "16MB"),
+    //SIZE(32, 1024, 1024, "32MB"), SIZE(64, 1024, 1024, "64MB"),
+    SIZE(1280, 720, 2, "1280x720 NV12"),
+    SIZE(1980, 1080, 2, "1920x1080 NV12"),
+    SIZE(2560, 1440, 2, "2560x1440 NV12"),
+    SIZE(3840, 2160, 2, "3840x2160 NV12"),
 };
 
 std::map<std::string, std::function<void*(void* to, void* from, size_t size)>> functions{
-	{ "A_memcpy", A_memcpy }, { "memcpy", &std::memcpy },
-	//{ "movsb", &memcpy_movsb },
-	//{ "movsw", &memcpy_movsw },
-	//{ "movsd", &memcpy_movsd },
-	//{ "movsq", &memcpy_movsq },
-	//{ "apex_memcpy", [](void* t, void* f, size_t s) { return apex::memcpy(t, f, s); } },
-	//{ "advmemcpy", &memcpy_thread },
-	//{ "advmemcpy_apex", &memcpy_thread },
+    {"A_memcpy", A_memcpy},
+    {"memcpy", &std::memcpy},
+    //{ "movsb", &memcpy_movsb },
+    //{ "movsw", &memcpy_movsw },
+    //{ "movsd", &memcpy_movsd },
+    //{ "movsq", &memcpy_movsq },
+    {"apex_memcpy", [](void* t, void* f, size_t s) { return apex::memcpy(t, f, s); }},
+    //{ "advmemcpy", &memcpy_thread },
+    //{ "advmemcpy_apex", &memcpy_thread },
 };
 
 std::map<std::string, std::function<void()>> initializers{
-	{ "advmemcpy", []() { memcpy_thread_set_memcpy(std::memcpy); } },
-	{ "advmemcpy_apex", []() { memcpy_thread_set_memcpy(apex::memcpy); } },
-	{ "apex_memcpy", []() { apex::memcpy(0, 0, 0); } },
-	{ "A_memcpy", []() { SetMemcpyCacheLimit(1); } },
+    {"apex_memcpy", []() { apex::memcpy(0, 0, 0); }},
+    {"A_memcpy", []() {}},
 };
 
 int32_t main(int32_t argc, const char* argv[])
 {
-	std::vector<uint8_t, aligned_allocator<uint8_t, 32>> buf_from, buf_to;
-	std::cin.get();
-
 	int64_t rw1, rw2, rw3, rw4, rw5, rw6, rw7, rw8;
+
+	std::vector<uint8_t, aligned_allocator<uint8_t, 32>> buf_from, buf_to, cache_kill;
 
 	size_t largest_size = 0;
 	for (auto test : test_sizes) {
 		if (test.first > largest_size)
 			largest_size = test.first;
 	}
-	largest_size *= 2;
-	buf_from.resize(largest_size);
-	buf_to.resize(largest_size);
+	buf_from.resize(largest_size * 4);
+	buf_to.resize(largest_size * 4);
+	cache_kill.resize(64 * 1024 * 1024);
 
-	auto amcenv = memcpy_thread_initialize(std::thread::hardware_concurrency());
-	memcpy_thread_env(amcenv);
-	apex::memcpy(buf_to.data(), buf_from.data(), 1);
+	srand(static_cast<uint32_t>(std::chrono::high_resolution_clock::now().time_since_epoch().count()
+	                            % 0xFFFFFFFFull));
 
+	measurer fence, fenc2, flush;
+
+	std::cin.get();
 	for (auto test : test_sizes) {
 		std::cout << "Testing '" << test.second << "' ( " << (test.first) << " B )..." << std::endl;
-
-		buf_from.resize(test.first);
-		buf_to.resize(test.first);
-		size_t size = test.first;
-
-		// Name            |       KB/s | 95.0% KB/s | 99.0% KB/s | 99.9% KB/s
-		// ----------------+------------+------------+------------+------------
-
 		std::cout << "Name            | Avg.  MB/s | 95.0% MB/s | 99.0% MB/s | 99.9% MB/s " << std::endl
 		          << "----------------+------------+------------+------------+------------" << std::endl;
 
+		size_t size = test.first;
 		for (auto func : functions) {
 			measurer measure;
 
@@ -240,32 +235,60 @@ int32_t main(int32_t argc, const char* argv[])
 			std::cout << setw(16) << setiosflags(ios::left) << func.first;
 			std::cout << setw(0) << resetiosflags(ios::left) << "|" << std::flush;
 
-			{
-				uint8_t* from = buf_from.data();
-				uint8_t* to   = buf_to.data();
+			for (size_t idx = 0; idx < MEASURE_TEST_CYCLES; idx++) {
+				// Get a random address to work from, but don't drop the 32-byte alignment.
+				uint8_t* from = buf_from.data() + ((rand() % largest_size * 3) & ~0b011111);
+				uint8_t* to   = buf_to.data() + ((rand() % largest_size * 3) & ~0b011111);
 
-				// Measure only the call itself.
-				for (size_t idx = 0; idx < MEASURE_TEST_CYCLES; idx++) {
-					{
-						auto tracker = measure.track();
-						func.second(to, from, size);
+				// Make sure the entire address space is invalidated and flushed from cache.
+				{
+					auto tracker = flush.track();
+					for (size_t sz = 0; sz < size; sz++) {
+						_mm_clflush(from + sz);
+						cache_kill.at(rand() % cache_kill.size()) =
+						    rand() % std::numeric_limits<uint8_t>::max();
 					}
+				}
 
-					// Do some random work to hopefully clear the instruction cache. For a hundred loops.
-					for (size_t idx2 = 0; idx < 100; idx++) {
-						rw1 += rw2;
-						rw2 -= rw3 * rw7;
-						rw8 = rw2 - rw1;
-						rw6 = rw3 + rw8;
-						rw5 = rw4 / rw3;
-						rw2 *= rw8;
-						rw3++;
-						if (rw1 == rw2) {
-							rw2 = rw3;
-						} else {
-							rw1 = rw2;
-						}
+				// Fence to avoid any incorrect late load/stores that can affect timings.
+				{
+					auto tracker = fence.track();
+					_mm_mfence();
+				}
+
+				{
+					auto tracker = measure.track();
+					func.second(to, from, size);
+				}
+
+				// Fence to avoid any incorrect late load/stores that can affect timings.
+				{
+					auto tracker = fenc2.track();
+					_mm_mfence();
+				}
+
+				// Fence to avoid any incorrect late load/stores that can affect timings.
+				// ToDo: Should this actually be in the loop?
+				//_mm_mfence();
+
+				// Clear Insutruction Caches and likely have an impact on branch caches.
+				for (size_t idx2 = 0; idx < 100; idx++) {
+					rw1 += rw2;
+					rw2 -= rw3 * rw7;
+					rw8 = rw2 - rw1;
+					rw6 = rw3 + rw8;
+					rw5 = rw4 / rw3;
+					rw2 *= rw8;
+					rw3++;
+					if (rw1 == rw2) {
+						rw2 = rw3;
+					} else {
+						rw1 = rw2;
 					}
+					if (rw2)
+						rw2 = rw6;
+					else
+						rw6 = rw2;
 				}
 			}
 
@@ -295,8 +318,38 @@ int32_t main(int32_t argc, const char* argv[])
 		std::cout << std::endl << std::endl;
 	}
 
-	memcpy_thread_finalize(amcenv);
+	std::cout << "Name            | Avg. 탎    | 95.0% 탎   | 99.0% 탎   | 99.9% 탎   \n"
+	          << "----------------+------------+------------+------------+------------\n";
 
+	std::cout << setw(16) << setiosflags(ios::left) << "_mm_clflush" << setw(0) << resetiosflags(ios::left) << "|"
+	          << setw(11) << setprecision(3) << setiosflags(ios::right) << std::fixed
+	          << flush.average_duration() / 1000 << setw(0) << resetiosflags(ios::right) << " |" << setw(11)
+	          << setprecision(3) << setiosflags(ios::right) << std::fixed << flush.percentile(0.95).count() / 1000.0
+	          << setw(0) << resetiosflags(ios::right) << " |" << setw(11) << setprecision(3)
+	          << setiosflags(ios::right) << std::fixed << flush.percentile(0.99).count() / 1000.0 << setw(0)
+	          << resetiosflags(ios::right) << " |" << setw(11) << setprecision(3) << setiosflags(ios::right)
+	          << std::fixed << flush.percentile(0.999).count() / 1000.0 << setw(0) << resetiosflags(ios::right)
+	          << '\n';
+	std::cout << setw(16) << setiosflags(ios::left) << "_mm_mfence1" << setw(0) << resetiosflags(ios::left) << "|"
+	          << setw(11) << setprecision(3) << setiosflags(ios::right) << std::fixed
+	          << fence.average_duration() / 1000 << setw(0) << resetiosflags(ios::right) << " |" << setw(11)
+	          << setprecision(3) << setiosflags(ios::right) << std::fixed << fence.percentile(0.95).count() / 1000.0
+	          << setw(0) << resetiosflags(ios::right) << " |" << setw(11) << setprecision(3)
+	          << setiosflags(ios::right) << std::fixed << fence.percentile(0.99).count() / 1000.0 << setw(0)
+	          << resetiosflags(ios::right) << " |" << setw(11) << setprecision(3) << setiosflags(ios::right)
+	          << std::fixed << fence.percentile(0.999).count() / 1000.0 << setw(0) << resetiosflags(ios::right)
+	          << '\n';
+	std::cout << setw(16) << setiosflags(ios::left) << "_mm_mfence2" << setw(0) << resetiosflags(ios::left) << "|"
+	          << setw(11) << setprecision(3) << setiosflags(ios::right) << std::fixed
+	          << fenc2.average_duration() / 1000 << setw(0) << resetiosflags(ios::right) << " |" << setw(11)
+	          << setprecision(3) << setiosflags(ios::right) << std::fixed << fenc2.percentile(0.95).count() / 1000.0
+	          << setw(0) << resetiosflags(ios::right) << " |" << setw(11) << setprecision(3)
+	          << setiosflags(ios::right) << std::fixed << fenc2.percentile(0.99).count() / 1000.0 << setw(0)
+	          << resetiosflags(ios::right) << " |" << setw(11) << setprecision(3) << setiosflags(ios::right)
+	          << std::fixed << fenc2.percentile(0.999).count() / 1000.0 << setw(0) << resetiosflags(ios::right)
+	          << '\n';
+
+	std::cout << std::flush << std::endl;
 	std::cin.get();
 	return 0;
 }
