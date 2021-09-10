@@ -1,6 +1,6 @@
 # Basic Formatting
-TabWidth: 8
-UseTab: ForIndentation
+TabWidth: 4
+UseTab: ForContinuationAndIndentation
 ColumnLimit: 120
  
 # Language
@@ -13,28 +13,32 @@ ConstructorInitializerIndentWidth: 4
 ContinuationIndentWidth: 4
 IndentCaseLabels: false
 #IndentPPDirectives: true
-IndentWidth: 8
+IndentWidth: 4
 IndentWrappedFunctionNames: true
 NamespaceIndentation: All
  
 # Includes
 #IncludeBlocks: Regroup
 IncludeCategories:
-  - Regex: '^<[a-zA-Z0-9_-]+intrin.h>'
-    Priority: 15
-  - Regex: '^<intrin.h>'
-    Priority: 10
+  - Regex: '^(<|")(config.hpp|common.hpp|strings.hpp|version.hpp|obs.h)("|>)'
+    Priority: 100
+  - Regex: '^<obs-'
+    Priority: 150
   - Regex: '^<'
-    Priority: 0
+    Priority: 200
+  - Regex: '^<Q'
+    Priority: 250
   - Regex: '^"'
-    Priority: 20
+    Priority: 300
+  - Regex: '.moc"$'
+    Priority: 300
 SortIncludes: true
  
 # Alignment
 AlignAfterOpenBracket: true
 AlignConsecutiveAssignments: true
 AlignConsecutiveDeclarations: true
-AlignEscapedNewlines: DontAlign
+AlignEscapedNewlines: Left
 AlignOperands: true
 AlignTrailingComments: true
 DerivePointerAlignment: false
@@ -71,7 +75,7 @@ BreakBeforeBraces: Custom
 BreakBeforeTernaryOperators: true
 BreakConstructorInitializers: BeforeColon
 #BreakInheritanceList: BeforeColon
-BreakStringLiterals: false
+BreakStringLiterals: true
 ConstructorInitializerAllOnOneLineOrOnePerLine: false
 Cpp11BracedListStyle: true
  

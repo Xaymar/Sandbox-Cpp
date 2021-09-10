@@ -1,0 +1,3 @@
+[submodule "thirdparty/xmr-utility-profiler"]
+	path = thirdparty/xmr-utility-profiler
+	url = https://github.com/Xaymar/xmr-utility-profiler.git
