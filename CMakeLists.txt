@@ -19,25 +19,9 @@ if(EXISTS ${WINRING0_PATH})
 	endif()
 endif()
 
-# xmr::utility::profiler
+# Third-Party
+## xmr::utility::profiler
 add_subdirectory("thirdparty/xmr-utility-profiler")
-
-# Sub-Projects
-#add_subdirectory(advmemcpy)
-#add_subdirectory(InvSqrt_Single)
-#add_subdirectory(InvSqrt_Double)
-#add_subdirectory(SSESwizzle)
-#add_subdirectory(FindPowerOfTwo)
-#add_subdirectory(RegisterHotkey)
-#add_subdirectory(vs2017)
-#add_subdirectory(GaussianMatrix)
-#add_subdirectory(is_power_of_two)
-
-# Vulkan Tests
-#add_subdirectory(vulkan01)
-
-# Tools
-add_subdirectory(nvenc-profile-extractor)
 
 # Benchmarks
 add_subdirectory(benchmarks)
