@@ -13,7 +13,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 target_link_libraries(
 	${PROJECT_NAME}
-	profiler
+	xmr_utility_profiler
 )
 set_target_properties(${PROJECT_NAME} PROPERTIES
 	CXX_STANDARD 17

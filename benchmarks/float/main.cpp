@@ -10,12 +10,58 @@
 #endif
 
 // Profiler
+#define XMR_UTILITY_PROFILER_ENABLE_FORCEINLINE
 #include <xmr/utility/profiler/clock/hpc.hpp>
 #include <xmr/utility/profiler/clock/tsc.hpp>
 #include <xmr/utility/profiler/profiler.hpp>
 
 #define ITERATIONS 1000
-#define INNER_ITERATIONS 1000000
+#define INNER_ITERATIONS 10000
+
+#define REPEAT_10(A) \
+	A;               \
+	A;               \
+	A;               \
+	A;               \
+	A;               \
+	A;               \
+	A;               \
+	A;               \
+	A;               \
+	A;
+#define REPEAT_100(A) \
+	REPEAT_10(A);     \
+	REPEAT_10(A);     \
+	REPEAT_10(A);     \
+	REPEAT_10(A);     \
+	REPEAT_10(A);     \
+	REPEAT_10(A);     \
+	REPEAT_10(A);     \
+	REPEAT_10(A);     \
+	REPEAT_10(A);     \
+	REPEAT_10(A);
+#define REPEAT_1000(A) \
+	REPEAT_100(A);     \
+	REPEAT_100(A);     \
+	REPEAT_100(A);     \
+	REPEAT_100(A);     \
+	REPEAT_100(A);     \
+	REPEAT_100(A);     \
+	REPEAT_100(A);     \
+	REPEAT_100(A);     \
+	REPEAT_100(A);     \
+	REPEAT_100(A);
+#define REPEAT_10000(A) \
+	REPEAT_1000(A);     \
+	REPEAT_1000(A);     \
+	REPEAT_1000(A);     \
+	REPEAT_1000(A);     \
+	REPEAT_1000(A);     \
+	REPEAT_1000(A);     \
+	REPEAT_1000(A);     \
+	REPEAT_1000(A);     \
+	REPEAT_1000(A);     \
+	REPEAT_1000(A);
 
 template<typename _Ty1>
 bool is_equal(const _Ty1 a, const _Ty1 b, const _Ty1 edge = 0.000001)
@@ -42,17 +88,16 @@ std::shared_ptr<xmr::utility::profiler::profiler> benchmark_addsub()
 {
 	std::shared_ptr<xmr::utility::profiler::profiler> profile = std::make_shared<xmr::utility::profiler::profiler>();
 
-	for (size_t n = 0; n < ITERATIONS; n++) {
-		volatile const _Ty1    a = 1.0;
-		volatile const _Ty1    b = 2.0;
+	for (volatile size_t n = 0; n < ITERATIONS; n++) {
+		const _Ty1    a = 1.0;
+		const _Ty1    b = 2.0;
 		const _Ty1    c = a + b * INNER_ITERATIONS - a * INNER_ITERATIONS;
-		volatile _Ty1 v = a;
-		
+		volatile _Ty1 v = 0;
+
+		// Overhead:
+		// - MSVC: 2x movss
 		auto t0 = xmr::utility::profiler::clock::tsc::now();
-		for (volatile size_t m = 0; m < INNER_ITERATIONS; m++) {
-			v += b;
-			v -= a;
-		}
+		REPEAT_10000(v = (v + b) - a;);
 		auto t1 = xmr::utility::profiler::clock::tsc::now();
 		profile->track(t1, t0);
 	}
@@ -65,16 +110,16 @@ std::shared_ptr<xmr::utility::profiler::profiler> benchmark_muladd()
 {
 	std::shared_ptr<xmr::utility::profiler::profiler> profile = std::make_shared<xmr::utility::profiler::profiler>();
 
-	for (size_t n = 0; n < ITERATIONS; n++) {
-		volatile const _Ty1    a = 1.0;
-		volatile const _Ty1    b = 2.0;
+	for (volatile size_t n = 0; n < ITERATIONS; n++) {
+		const _Ty1    a = 1.0;
+		const _Ty1    b = 2.0;
 		const _Ty1    c = a + b * INNER_ITERATIONS - a * INNER_ITERATIONS;
 		volatile _Ty1 v = a;
 
+		// Overhead:
+		// - MSVC: 2x movss
 		auto t0 = xmr::utility::profiler::clock::tsc::now();
-		for (volatile size_t m = 0; m < INNER_ITERATIONS; m++) {
-			v += (a * b);
-		}
+		REPEAT_10000(v = a + (v * b););
 		auto t1 = xmr::utility::profiler::clock::tsc::now();
 		profile->track(t1, t0);
 	}
@@ -102,7 +147,7 @@ std::int32_t main(std::int32_t argc, const char* argv[])
 
 	{     // Add-Sub
 		{ // FP32
-			auto p = benchmark_addsub<float>();
+			auto  p = benchmark_addsub<float>();
 			printf("%-10s|%8.2fns|%8.2fns|%8.2fns|%8.2fns|%8.2fns|%8.2fms\n", "F32 +-",
 				   xmr::utility::profiler::clock::tsc::to_nanoseconds(p->percentile_events(0.9999)) / INNER_ITERATIONS,
 				   xmr::utility::profiler::clock::tsc::to_nanoseconds(p->percentile_events(0.9990)) / INNER_ITERATIONS,
@@ -112,7 +157,7 @@ std::int32_t main(std::int32_t argc, const char* argv[])
 				   xmr::utility::profiler::clock::tsc::to_milliseconds(p->total_time()));
 		}
 		{ // FP64
-			auto p = benchmark_addsub<double>();
+			auto   p = benchmark_addsub<double>();
 			printf("%-10s|%8.2fns|%8.2fns|%8.2fns|%8.2fns|%8.2fns|%8.2fms\n", "F64 +-",
 				   xmr::utility::profiler::clock::tsc::to_nanoseconds(p->percentile_events(0.9999)) / INNER_ITERATIONS,
 				   xmr::utility::profiler::clock::tsc::to_nanoseconds(p->percentile_events(0.9990)) / INNER_ITERATIONS,

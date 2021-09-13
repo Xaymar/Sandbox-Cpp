@@ -14,7 +14,7 @@ add_executable(${PROJECT_NAME}
 
 SET(PLATFORM_LIBS)
 list(APPEND PLATFORM_LIBS
-	profiler
+	xmr_utility_profiler
 )
 
 target_link_libraries(
