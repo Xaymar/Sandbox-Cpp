@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.2)
+cmake_minimum_required(VERSION 3.2...4.0)
 project(asmlib VERSION 2.52.0.0)
 
 set(_LIB "")

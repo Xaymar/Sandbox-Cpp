@@ -1,13 +1,13 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 2.8...4.0)
 project(InvSqrtDouble)
 
-set(SOURCES 
+set(SOURCES
     InvSqrt_Double.cpp)
 
 set(HEADERS)
 
-add_executable(InvSqrtDouble 
-    ${SOURCES} 
+add_executable(InvSqrtDouble
+    ${SOURCES}
     ${HEADERS})
 
 SET(PLATFORM_LIBS)

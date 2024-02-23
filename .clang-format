@@ -1,12 +1,29 @@
+# TinyAudioLink - Seamlessly transfer Audio between USB capable devices
+# Copyright (C) 2019 Michael Fabian 'Xaymar' Dirks
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 # Basic Formatting
 TabWidth: 4
 UseTab: ForContinuationAndIndentation
-ColumnLimit: 120
- 
+ColumnLimit: 65535
+#- 0 does not respect the original line breaks!
+
 # Language
 Language: Cpp
-Standard: Cpp11
- 
+Standard: Latest
+
 # Indentation
 AccessModifierOffset: 0
 ConstructorInitializerIndentWidth: 4
@@ -16,11 +33,13 @@ IndentCaseLabels: false
 IndentWidth: 4
 IndentWrappedFunctionNames: true
 NamespaceIndentation: All
- 
+
 # Includes
 #IncludeBlocks: Regroup
 IncludeCategories:
-  - Regex: '^(<|")(config.hpp|common.hpp|strings.hpp|version.hpp|obs.h)("|>)'
+  - Regex: '^"warning-disable.hpp"$'
+    Priority: 50
+  - Regex: '^(<|")(config.hpp|common.hpp|ui-common.hpp|strings.hpp|version.hpp|obs.h)("|>)'
     Priority: 100
   - Regex: '^<obs-'
     Priority: 150
@@ -32,18 +51,20 @@ IncludeCategories:
     Priority: 300
   - Regex: '.moc"$'
     Priority: 300
+  - Regex: '^"warning-enable.hpp"$'
+    Priority: 500
 SortIncludes: true
- 
+
 # Alignment
 AlignAfterOpenBracket: true
 AlignConsecutiveAssignments: true
 AlignConsecutiveDeclarations: true
 AlignEscapedNewlines: Left
 AlignOperands: true
-AlignTrailingComments: true
+AlignTrailingComments: false
 DerivePointerAlignment: false
 PointerAlignment: Left
- 
+
 # Wrapping and Breaking
 AllowAllParametersOfDeclarationOnNextLine: true
 AllowShortBlocksOnASingleLine: false
@@ -78,7 +99,8 @@ BreakConstructorInitializers: BeforeColon
 BreakStringLiterals: true
 ConstructorInitializerAllOnOneLineOrOnePerLine: false
 Cpp11BracedListStyle: true
- 
+BreakAfterAttributes: Always
+
 # Spaces
 SpaceAfterCStyleCast: false
 SpaceAfterTemplateKeyword: false
@@ -95,7 +117,7 @@ SpacesInCStyleCastParentheses: false
 SpacesInContainerLiterals: false
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
- 
+
 # Other
 CommentPragmas: '^(!FIXME!|!TODO!|ToDo:)'
 CompactNamespaces: false

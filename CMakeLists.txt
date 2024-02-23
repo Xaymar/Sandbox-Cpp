@@ -1,8 +1,4 @@
-cmake_minimum_required(VERSION 3.12.0)
-
-cmake_policy(VERSION 3.12)
-cmake_policy(SET CMP0048 NEW)
-
+cmake_minimum_required(VERSION 3.12.0...3.999.999)
 project(sandbox)
 
 # Dependencies
@@ -23,5 +19,60 @@ endif()
 ## xmr::utility::profiler
 add_subdirectory("thirdparty/xmr-utility-profiler")
 
-# Benchmarks
-add_subdirectory(benchmarks)
+# Projects
+function(has_parent_cmakelists DIR OUT)
+	set("${OUT}" OFF PARENT_SCOPE)
+
+	set(RDIR "${DIR}")
+	while(NOT (RDIR STREQUAL ""))
+		file(REAL_PATH "${RDIR}" RDIR BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+		file(RELATIVE_PATH RDIR "${CMAKE_CURRENT_SOURCE_DIR}" "${RDIR}/..")
+		if(RDIR STREQUAL "")
+			return()
+		endif()
+
+#		message(STATUS "${DIR}\n->${RDIR}")
+		if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${RDIR}/CMakeLists.txt")
+			set("${OUT}" ON PARENT_SCOPE)
+		endif()
+	endwhile()
+#	message("${OUT}=${${OUT}}")
+endfunction()
+
+file(GLOB_RECURSE DIRS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" LIST_DIRECTORIES true CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/boxes/*")
+foreach(DIR ${DIRS})
+#	message(STATUS "${DIR}")
+
+#	message(STATUS "\\ Skip File?")
+	if(NOT (IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/${DIR}"))
+#		message(STATUS " \\- Yes")
+		continue()
+	endif()
+
+#	message(STATUS " \\ Skip non-Project?")
+	if(NOT (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${DIR}/CMakeLists.txt"))
+#		message(STATUS "  \\- Yes")
+		continue()
+	endif()
+
+#	message(STATUS "  \\ Skip blacklisted?")
+	file(REAL_PATH "${DIR}" ADIR BASE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+	if(ADIR MATCHES "${PROJECT_BINARY_DIR}")
+#		message(STATUS "   \\- Yes")
+		continue()
+	endif()
+	if(ADIR MATCHES "${PROJECT_SOURCE_DIR}/third-party")
+#		message(STATUS "   \\- Yes")
+		continue()
+	endif()
+
+#	message(STATUS "   \\ Skip child project?")
+	has_parent_cmakelists(${DIR} STATUS)
+	if(STATUS)
+#		message(STATUS "    \\- Yes")
+		continue()
+	endif()
+
+	message(STATUS "Adding: ${DIR}")
+	add_subdirectory(${DIR})
+endforeach()

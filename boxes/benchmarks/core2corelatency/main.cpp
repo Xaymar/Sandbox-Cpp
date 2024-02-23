@@ -18,6 +18,11 @@
 #include <xmr/utility/profiler/clock/tsc.hpp>
 #include <xmr/utility/profiler/profiler.hpp>
 
+extern "C" {
+uint64_t _thread_write_main(uint64_t cycle, uint64_t* read_ready, uint64_t* write_ready, uint64_t* data);
+uint64_t _thread_read_main(uint64_t cycle, uint64_t* read_ready, uint64_t* write_ready, uint64_t* data);
+}
+
 /* Measure Core To Core Latency
 
 Modern CPUs have variable latency between cores, which results in poor performance
@@ -39,7 +44,9 @@ As an example in order to measure C2C latency between Core 1 and Core 2:
 
 */
 
-#define ITERATIONS 100000
+#define ITERATIONS 1000000
+#define USE_ATOMIC
+#define USE_ASSEMBLY
 
 void thread_affinity(uint16_t processor, uint8_t thread_index)
 {
@@ -70,18 +77,31 @@ void thread_priority_rt()
 }
 
 struct thread_read_data {
-	volatile uint32_t            id;
-	volatile std::atomic<size_t> ready;
+	volatile uint32_t id;
+#ifdef USE_ASSEMBLY
+	uint64_t ready;
+#else
+	std::atomic<size_t>   ready;
+#endif
 
 	// Profiler storage
 	std::shared_ptr<xmr::utility::profiler::profiler> profiler;
 };
 
 struct thread_write_data {
-	volatile uint32_t            id;
-	volatile std::atomic<size_t> ready;
-	volatile std::atomic<bool>   data;
-	volatile uint64_t            time;
+	volatile uint32_t id;
+#ifdef USE_ASSEMBLY
+	uint64_t ready;
+	uint64_t data;
+#else
+	std::atomic<size_t>   ready;
+	std::atomic<uint64_t> time;
+#ifdef USE_ATOMIC
+	std::atomic<bool>     data;
+#else
+	volatile bool data;
+#endif
+#endif
 };
 
 void thread_read_main(thread_read_data* td, thread_write_data* twd)
@@ -89,26 +109,42 @@ void thread_read_main(thread_read_data* td, thread_write_data* twd)
 	thread_affinity(0, td->id);
 	thread_priority_rt();
 
-	volatile std::atomic<size_t>& read_ready  = td->ready;
-	volatile std::atomic<size_t>& write_ready = twd->ready;
-	volatile std::atomic<bool>&   data        = twd->data;
+#ifndef USE_ASSEMBLY
+	std::atomic<size_t>& read_ready  = td->ready;
+	std::atomic<size_t>& write_ready = twd->ready;
+#ifdef USE_ATOMIC
+	std::atomic<bool>& data = twd->data;
+#else
+	volatile bool& data = twd->data;
+#endif
+#else
+	volatile uint64_t&    read_ready  = td->ready;
+	volatile uint64_t&    write_ready = twd->ready;
+	volatile uint64_t&    data        = twd->data;
+#endif
 
 	read_ready = 0;
-	data       = false;
 	for (volatile size_t idx = 1; idx <= ITERATIONS; idx++) {
-		// Wait for write thread to be ready.
-		while (write_ready != idx) { // no-op
-		}
-		// Signal write thread that read thread is ready.
-		read_ready = idx;
-		// Wait until we are signalled
-		while (!data) { // no-op
-		}
-		// Record time and store.
-		uint64_t time = xmr::utility::profiler::clock::tsc::now();
-		td->profiler->track(time, twd->time);
-		// Reset data
-		data = false;
+#ifdef USE_ASSEMBLY
+		// Record time, store time, reset.
+		uint64_t time = _thread_read_main(idx, &(td->ready), &(twd->ready), &(twd->data));
+		td->profiler->track(time, data);
+		data = 0;
+#else
+        // Wait for write thread to be ready.
+        while (write_ready != idx) { // no-op
+        }
+        // Signal write thread that read thread is ready.
+        read_ready = idx;
+        // Wait until we are signalled
+        while (!data) { // no-op
+        }
+        // Record time and store.
+        uint64_t time = xmr::utility::profiler::clock::tsc::now();
+        td->profiler->track(time, twd->time);
+        // Reset data
+        data = false;
+#endif
 	}
 }
 
@@ -117,23 +153,41 @@ void thread_write_main(thread_write_data* td, thread_read_data* trd)
 	thread_affinity(0, td->id);
 	thread_priority_rt();
 
-	volatile std::atomic<size_t>& read_ready  = trd->ready;
-	volatile std::atomic<size_t>& write_ready = td->ready;
-	volatile std::atomic<bool>&   data        = td->data;
+#ifndef USE_ASSEMBLY
+	std::atomic<size_t>& read_ready  = trd->ready;
+	std::atomic<size_t>& write_ready = td->ready;
+#ifdef USE_ATOMIC
+	std::atomic<bool>& data = td->data;
+#else
+	volatile bool& data = td->data;
+#endif
+#else
+	uint64_t& read_ready  = trd->ready;
+	uint64_t& write_ready = td->ready;
+	uint64_t&     data        = td->data;
+#endif
 
 	write_ready = 0;
+	read_ready  = 0;
+	data        = false;
+
 	for (volatile size_t idx = 1; idx <= ITERATIONS; idx++) {
-		// Signal read thread to be ready.
-		write_ready = idx;
-		// Wait for read thread to be ready.
-		while (read_ready != idx) { // no-op
-		}
-		// Record time and signal read thread.
-		td->time = xmr::utility::profiler::clock::tsc::now();
-		data     = true;
-		// Wait until read thread resets data.
-		while (data) { // no-op
-		}
+#ifdef USE_ASSEMBLY
+		uint64_t jdx = _thread_write_main(idx, &(trd->ready), &(td->ready), &(td->data));
+		jdx += 1;
+#else
+        // Signal read thread to be ready.
+        write_ready = idx;
+        // Wait for read thread to be ready.
+        while (read_ready != idx) { // no-op
+        }
+        // Record time and signal read thread.
+        td->time = xmr::utility::profiler::clock::tsc::now();
+        data     = true;
+        // Wait until read thread resets data.
+        while (data) { // no-op
+        }
+#endif
 	}
 }
 
@@ -148,8 +202,10 @@ std::int32_t main(std::int32_t argc, const char* argv[])
 			std::pair<uint32_t, uint32_t> key{idx, jdx};
 
 			// Skip identical cores, can't measure latency to self.
-			if (idx == jdx)
+			if (idx == jdx) {
+				printf("          |");
 				continue;
+			}
 
 			// Create and initialize structures.
 			thread_read_data  trd;
@@ -179,7 +235,8 @@ std::int32_t main(std::int32_t argc, const char* argv[])
 	// Write results to file.
 	std::ofstream file("results.csv", std::ios_base::out | std::ios_base::trunc);
 	{ // Average
-		file << "c2c" << ",";
+		file << "c2c"
+			 << ",";
 		for (size_t n = 0; n < max_core_id; n++) {
 			file << n << ",";
 		}
@@ -204,7 +261,8 @@ std::int32_t main(std::int32_t argc, const char* argv[])
 		file << std::endl;
 	}
 	{ // 99.90ile
-		file << "c2c" << ",";
+		file << "c2c"
+			 << ",";
 		for (size_t n = 0; n < max_core_id; n++) {
 			file << n << ",";
 		}
@@ -221,7 +279,7 @@ std::int32_t main(std::int32_t argc, const char* argv[])
 
 				auto value = profilers.find(key);
 				if (value != profilers.end()) {
-					file << xmr::utility::profiler::clock::tsc::to_nanoseconds(value->second->percentile_events(0.999))
+					file << xmr::utility::profiler::clock::tsc::to_nanoseconds(value->second->percentile_time(0.999))
 						 << ",";
 				}
 			}
@@ -230,7 +288,8 @@ std::int32_t main(std::int32_t argc, const char* argv[])
 		file << std::endl;
 	}
 	{ // 99.00ile
-		file << "c2c" << ",";
+		file << "c2c"
+			 << ",";
 		for (size_t n = 0; n < max_core_id; n++) {
 			file << n << ",";
 		}
@@ -247,7 +306,7 @@ std::int32_t main(std::int32_t argc, const char* argv[])
 
 				auto value = profilers.find(key);
 				if (value != profilers.end()) {
-					file << xmr::utility::profiler::clock::tsc::to_nanoseconds(value->second->percentile_events(0.99))
+					file << xmr::utility::profiler::clock::tsc::to_nanoseconds(value->second->percentile_time(0.99))
 						 << ",";
 				}
 			}
