@@ -442,7 +442,7 @@ namespace hd2 {
 		float    x, y, z;
 		uint32_t __unk00;
 		half     u, v;
-		uint32_t __unk01[2];
+		half     n[4];
 	};
 
 	struct vertex32_t {
@@ -694,28 +694,28 @@ int main(int argc, const char** argv)
 						auto v0 = *reinterpret_cast<uint8_t const*>(idx_ptr + datatype.indices_stride() * 0) + 1;
 						auto v1 = *reinterpret_cast<uint8_t const*>(idx_ptr + datatype.indices_stride() * 1) + 1;
 						auto v2 = *reinterpret_cast<uint8_t const*>(idx_ptr + datatype.indices_stride() * 2) + 1;
-						fprintf(file.get(), "f %3" PRIu8 "/%3" PRIu8 "/%3" PRIu8 " %3" PRIu8 "/%3" PRIu8 "/%3" PRIu8 " %3" PRIu8 "/%3" PRIu8 "/%3" PRIu8 "\n", v0, v0, v0, v1, v1, v1, v2, v2, v2);
+						fprintf(file.get(), "f %" PRIu8 "/%" PRIu8 "/%" PRIu8 " %" PRIu8 "/%" PRIu8 "/%" PRIu8 " %" PRIu8 "/%" PRIu8 "/%" PRIu8 "\n", v0, v0, v0, v1, v1, v1, v2, v2, v2);
 						break;
 					}
 					case 2: {
 						auto v0 = *reinterpret_cast<uint16_t const*>(idx_ptr + datatype.indices_stride() * 0) + 1;
 						auto v1 = *reinterpret_cast<uint16_t const*>(idx_ptr + datatype.indices_stride() * 1) + 1;
 						auto v2 = *reinterpret_cast<uint16_t const*>(idx_ptr + datatype.indices_stride() * 2) + 1;
-						fprintf(file.get(), "f %5" PRIu16 "/%5" PRIu16 "/%5" PRIu16 " %5" PRIu16 "/%5" PRIu16 "/%5" PRIu16 " %5" PRIu16 "/%5" PRIu16 "/%5" PRIu16 "\n", v0, v0, v0, v1, v1, v1, v2, v2, v2);
+						fprintf(file.get(), "f %" PRIu16 "/%" PRIu16 "/%" PRIu16 " %" PRIu16 "/%" PRIu16 "/%" PRIu16 " %" PRIu16 "/%" PRIu16 "/%" PRIu16 "\n", v0, v0, v0, v1, v1, v1, v2, v2, v2);
 						break;
 					}
 					case 4: {
 						auto v0 = *reinterpret_cast<uint32_t const*>(idx_ptr + datatype.indices_stride() * 0) + 1;
 						auto v1 = *reinterpret_cast<uint32_t const*>(idx_ptr + datatype.indices_stride() * 1) + 1;
 						auto v2 = *reinterpret_cast<uint32_t const*>(idx_ptr + datatype.indices_stride() * 2) + 1;
-						fprintf(file.get(), "f %10" PRIu32 "/%10" PRIu32 "/%10" PRIu32 " %10" PRIu32 "/%10" PRIu32 "/%10" PRIu32 " %10" PRIu32 "/%10" PRIu32 "/%10" PRIu32 "\n", v0, v0, v0, v1, v1, v1, v2, v2, v2);
+						fprintf(file.get(), "f %" PRIu32 "/%" PRIu32 "/%" PRIu32 " %" PRIu32 "/%" PRIu32 "/%" PRIu32 " %" PRIu32 "/%" PRIu32 "/%" PRIu32 "\n", v0, v0, v0, v1, v1, v1, v2, v2, v2);
 						break;
 					}
 					case 8: {
 						auto v0 = *reinterpret_cast<uint64_t const*>(idx_ptr + datatype.indices_stride() * 0) + 1;
 						auto v1 = *reinterpret_cast<uint64_t const*>(idx_ptr + datatype.indices_stride() * 1) + 1;
 						auto v2 = *reinterpret_cast<uint64_t const*>(idx_ptr + datatype.indices_stride() * 2) + 1;
-						fprintf(file.get(), "f %20" PRIu64 "/%20" PRIu64 "/%20" PRIu64 " %20" PRIu64 "/%20" PRIu64 "/%20" PRIu64 " %20" PRIu64 "/%20" PRIu64 "/%20" PRIu64 "\n", v0, v0, v0, v1, v1, v1, v2, v2, v2);
+						fprintf(file.get(), "f %" PRIu64 "/%" PRIu64 "/%" PRIu64 " %" PRIu64 "/%" PRIu64 "/%" PRIu64 " %" PRIu64 "/%" PRIu64 "/%" PRIu64 "\n", v0, v0, v0, v1, v1, v1, v2, v2, v2);
 						break;
 					}
 					}
