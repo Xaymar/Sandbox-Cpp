@@ -10,6 +10,7 @@
 
 #include <cinttypes>
 #include <cstddef>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <iomanip>
@@ -93,6 +94,15 @@ using win32_handle_t = shared_ptr_with_deleter<void, HANDLE_deleter>;
 #else
 #pragma error("Not supported yet, do some work to make it work.")
 #endif
+
+struct FILE_deleter {
+	void operator()(FILE* p) const
+	{
+		if (p)
+			fclose(p);
+	}
+};
+using file_t = shared_ptr_with_deleter<FILE, FILE_deleter>;
 
 namespace hd2 {
 	// Models are incredibly tiny, less than 1/10th of a world unit.
@@ -508,360 +518,212 @@ int main(int argc, const char** argv)
 #pragma error("Not supported yet, do some work to make it work.")
 #endif
 
-	hd2::meshinfo mi{reinterpret_cast<uint8_t const*>(mesh_info_ptr)};
+	hd2::meshinfo meshinfo{reinterpret_cast<uint8_t const*>(mesh_info_ptr)};
+	auto          materials = meshinfo.materials();
+	auto          datatypes = meshinfo.datatypes();
+	auto          meshes    = meshinfo.meshes();
+
 	{ // Enumerate Materials
-		auto ms = mi.materials();
-		printf("%" PRIu32 " Materials: \n", ms.count());
-		for (size_t idx = 0; idx < ms.count(); idx++) {
-			auto m = ms.at(idx);
-			printf("  - [%zu] %04" PRIx32 " = %" PRIx64 "\n", idx, m.first, m.second);
+		printf("%" PRIu32 " Materials: \n", materials.count());
+		for (size_t idx = 0; idx < materials.count(); idx++) {
+			auto material = materials.at(idx);
+			printf("- [%zu] %04" PRIx32 " = %" PRIx64 "\n", idx, material.first, material.second);
 		}
 	}
+
 	{ // Enumerate Data Types
-		auto ds = mi.datatypes();
-		printf("%" PRIu32 " Data Types: \n", ds.count());
-		for (size_t idx = 0; idx < ds.count(); idx++) {
-			auto d = ds.at(idx);
-			printf("  - [%zu] \n", idx);
-			printf("    - %" PRIu32 " Vertices\n", d.vertices());
-			printf("      - From: %08" PRIx32 "\n", d.vertices_offset());
-			printf("      - To:   %08" PRIx32 "\n", d.vertices_offset() + d.vertices_size());
-			printf("      - Stride: %" PRId32 "\n", d.vertices_stride());
-			printf("    - %" PRIu32 " Indices\n", d.indices());
-			printf("      - From: %08" PRIx32 "\n", d.indices_offset());
-			printf("      - To:   %08" PRIx32 "\n", d.indices_offset() + d.indices_size());
-			printf("      - Stride: %" PRId32 "\n", d.indices_stride());
+		printf("%" PRIu32 " Data Types: \n", datatypes.count());
+		for (size_t idx = 0; idx < datatypes.count(); idx++) {
+			auto datatype = datatypes.at(idx);
+			printf("- [%zu] \n", idx);
+			printf("  - %" PRIu32 " Vertices, ", datatype.vertices());
+			printf("From: %08" PRIx32 ", ", datatype.vertices_offset());
+			printf("To: %08" PRIx32 ", ", datatype.vertices_offset() + datatype.vertices_size());
+			printf("Stride: %" PRId32 "\n", datatype.vertices_stride());
+			printf("  - %" PRIu32 " Indices, ", datatype.indices());
+			printf("From: %08" PRIx32 ", ", datatype.indices_offset());
+			printf("To: %08" PRIx32 ", ", datatype.indices_offset() + datatype.indices_size());
+			printf("Stride: %" PRId32 "\n", datatype.indices_stride());
 		}
 	}
+
 	{ // Enumerate Meshes
-		auto ms = mi.meshes();
-		printf("%" PRIu32 " Meshes: \n", ms.count());
-		for (size_t idx = 0; idx < ms.count(); idx++) {
-			auto m = ms.at(idx);
-			auto d = mi.datatypes().at(m.datatype_index());
-			printf("  - [%zu] Data Type: %" PRIu32 "\n", idx, m.datatype_index());
-			printf("    - %" PRIu32 " Vertices\n", m.modeldata().vertices_count());
-			printf("      - Offset: %08" PRIx32 "\n", m.modeldata().vertices_offset());
-			printf("      - From:   %08" PRIx32 "\n", m.modeldata().vertices_offset() + d.vertices_offset());
-			printf("      - To:   %08" PRIx32 "\n", m.modeldata().vertices_offset() + d.vertices_offset() + m.modeldata().vertices_count() * d.vertices_stride());
-			printf("    - %" PRIu32 " Indices\n", m.modeldata().indices_count());
-			printf("      - Offset: %08" PRIx32 "\n", m.modeldata().indices_offset());
-			printf("      - From: %08" PRIx32 "\n", m.modeldata().indices_offset() + d.indices_offset());
-			printf("      - To:   %08" PRIx32 "\n", m.modeldata().indices_offset() + d.indices_offset() + m.modeldata().indices_count() * d.indices_stride());
-			printf("    - %" PRIu32 " Materials\n", m.material_count());
-			for (size_t jdx = 0; jdx < m.material_count(); jdx++) {
-				printf("      - [%zu] %" PRIx32 "\n", jdx, m.material_at(jdx));
+		printf("%" PRIu32 " Meshes: \n", meshes.count());
+		for (size_t idx = 0; idx < meshes.count(); idx++) {
+			auto mesh     = meshes.at(idx);
+			auto datatype = datatypes.at(mesh.datatype_index());
+			printf("- [%zu] Data Type: %" PRIu32 "\n", idx, mesh.datatype_index());
+			printf("  - %" PRIu32 " Vertices, Stride: %" PRIu32 ", ", mesh.modeldata().vertices_count(), datatype.vertices_stride());
+			printf("Offset: %08" PRIx32 ", ", mesh.modeldata().vertices_offset());
+			printf("From:   %08" PRIx32 ", ", mesh.modeldata().vertices_offset() + datatype.vertices_offset());
+			printf("To:   %08" PRIx32 "\n", mesh.modeldata().vertices_offset() + datatype.vertices_offset() + mesh.modeldata().vertices_count() * datatype.vertices_stride());
+			printf("  - %" PRIu32 " Indices, Stride: %" PRIu32 ", \n", mesh.modeldata().indices_count(), datatype.indices_stride());
+			printf("Offset: %08" PRIx32 ", ", mesh.modeldata().indices_offset());
+			printf("From: %08" PRIx32 ", ", mesh.modeldata().indices_offset() + datatype.indices_offset());
+			printf("To:   %08" PRIx32 "\n", mesh.modeldata().indices_offset() + datatype.indices_offset() + mesh.modeldata().indices_count() * datatype.indices_stride());
+			printf("  - %" PRIu32 " Materials: ", mesh.material_count());
+			for (size_t jdx = 0; jdx < mesh.material_count(); jdx++) {
+				printf("%" PRIx32 ", ", jdx, mesh.material_at(jdx));
 			}
 		}
 	}
+	printf("\n\n\n\n");
 
-	/*
+	{ // Export meshes.
+		printf("Exporting Meshes...\n");
+		for (size_t idx = 0; idx < meshes.count(); idx++) {
+			printf("- [%zu] Exporting...\n", idx);
+			auto mesh     = meshes.at(idx);
+			auto datatype = datatypes.at(mesh.datatype_index());
 
-	{ // Parse Data Types
-		auto fmtflags = std::cout.flags();
-		std::cout << "Data Types at: 0x" << std::setfill('0') << std::setw(sizeof(size_t)) << std::right << std::hex << (reinterpret_cast<uint8_t const*>(mi.datatypes.raw) - mesh_info_ptr) << std::endl;
-		std::cout.flags(fmtflags);
-		mi.datatypes.raw = reinterpret_cast<decltype(mi.datatypes.raw)>(mesh_info_ptr + mi.raw->s.datatype_offset);
+			// Generate name.
+			std::string filename;
+			{
+				const char*       format = "./mesh_%08" PRIu32 ".obj";
+				std::vector<char> buf;
+				size_t            bufsz = snprintf(nullptr, 0, format, idx);
+				buf.resize(bufsz + 1);
+				snprintf(buf.data(), buf.size(), format, idx);
+				filename = {buf.data(), buf.data() + buf.size() - 1};
+			}
 
-		mi.datatypes.count = mi.datatypes.raw->s.count;
-		mi.datatypes.info.resize(mi.datatypes.count);
+			// Open output file.
+			auto   filehandle = fopen(filename.c_str(), "w+b");
+			file_t file{filehandle};
 
-		mi.datatypes.raw_offset.resize(mi.datatypes.count);
-		mi.datatypes.raw_info.resize(mi.datatypes.count);
+			// Write overall data.
+			fprintf(file.get(), "o %s\n", filename.c_str());
+			fprintf(file.get(), "g %s\n", filename.c_str());
+			fprintf(file.get(), "s 1\n");
+			fflush(file.get());
 
-		// Map raw information to memory.
-		for (size_t i = 0; i < mi.datatypes.count; i++) {
-			mi.datatypes.raw_offset[i] = reinterpret_cast<hd2::datatypeoffset_u const*>(mi.datatypes.raw + 1) + i;
-			mi.datatypes.raw_info[i]   = reinterpret_cast<hd2::datatypeinfo_u const*>(reinterpret_cast<uint8_t const*>(mi.datatypes.raw) + mi.datatypes.raw_offset[i]->s.offset);
-		}
+			{ // Write all vertices.
+				std::ptrdiff_t ptr         = datatype.vertices_offset() + mesh.modeldata().vertices_offset() * datatype.vertices_stride();
+				std::ptrdiff_t max_ptr     = ptr + mesh.modeldata().vertices_count() * datatype.vertices_stride();
+				std::ptrdiff_t abs_max_ptr = datatype.vertices_offset() + datatype.vertices_size();
 
-		// Parse raw information from memory.
-		for (size_t i = 0; i < mi.datatypes.count; i++) {
-			auto& li = mi.datatypes.info[i];
-			auto  ri = mi.datatypes.raw_info[i];
-			li.raw   = ri;
+				bool is_error_ptr = false;
+				if (ptr > abs_max_ptr) {
+					printf("  ptr > abs_max_ptr\n");
+					is_error_ptr = true;
+				} else if (max_ptr > abs_max_ptr) {
+					printf("  max_ptr > abs_max_ptr\n");
+					is_error_ptr = true;
+				}
+				if (is_error_ptr) {
+					printf("  ptr =         %08zx", ptr);
+					printf("  max_ptr =     %08zx", max_ptr);
+					printf("  abs_max_ptr = %08zx", abs_max_ptr);
+					continue;
+				}
 
-			li.index_count  = ri->s.index_count;
-			li.index_offset = ri->s.index_offset;
-			li.index_size   = ri->s.index_size;
+				for (size_t vtx = 0; vtx < mesh.modeldata().vertices_count(); vtx++) {
+					auto vtx_ptr = reinterpret_cast<uint8_t const*>(mesh_ptr + ptr + datatype.vertices_stride() * vtx);
+					fprintf(file.get(), "# %zu\n", vtx);
 
-			li.vertex_count  = ri->s.vertex_count;
-			li.vertex_stride = ri->s.vertex_stride;
-			li.vertex_offset = ri->s.vertex_offset;
-			li.vertex_size   = ri->s.vertex_size;
-		}
-	}
-
-	{ // Parse Hash Tables
-		auto fmtflags = std::cout.flags();
-		std::cout << "Hash Tables at: 0x" << std::setfill('0') << std::setw(sizeof(size_t)) << std::right << std::hex << (reinterpret_cast<uint8_t const*>(mi.materials.raw) - mesh_info_ptr) << std::endl;
-		std::cout.flags(fmtflags);
-		mi.materials.raw   = reinterpret_cast<decltype(mi.materials.raw)>(mesh_info_ptr + mi.raw->s.hashtable_offset);
-		mi.materials.count = mi.materials.raw->s.count;
-
-		mi.materials.raw_datatype_hashes.resize(mi.materials.count);
-		mi.materials.datatype_hashes.resize(mi.materials.count);
-		mi.materials.material_hashes.resize(mi.materials.count);
-
-		// Map raw information to memory.
-		for (size_t i = 0; i < mi.materials.count; i++) {
-			mi.materials.raw_datatype_hashes[i] = reinterpret_cast<hd2::hashentry_u const*>(mi.materials.raw + 1) + i;
-		}
-
-		// Parse raw information from memory.
-		for (size_t i = 0; i < mi.materials.count; i++) {
-			mi.materials.datatype_hashes[i] = mi.materials.raw_datatype_hashes[i]->s.value;
-			mi.materials.material_hashes[i] =
-		}
-	}
-
-	{ // Parse Meshes
-		auto fmtflags = std::cout.flags();
-		std::cout << "Meshes at: 0x" << std::setfill('0') << std::setw(sizeof(size_t)) << std::right << std::hex << (reinterpret_cast<uint8_t const*>(mi.meshes.raw) - mesh_info_ptr) << std::endl;
-		std::cout.flags(fmtflags);
-		mi.meshes.raw   = reinterpret_cast<decltype(mi.meshes.raw)>(mesh_info_ptr + mi.raw->s.meshinfo_info);
-		mi.meshes.count = mi.meshes.raw->s.count;
-
-		mi.meshes.info.resize(mi.meshes.count);
-		mi.meshes.crc.resize(mi.meshes.count);
-
-		mi.meshes.raw_offset.resize(mi.meshes.count);
-		mi.meshes.raw_info.resize(mi.meshes.count);
-		mi.meshes.raw_crc.resize(mi.meshes.count);
-
-		// Map raw information to memory.
-		for (size_t i = 0; i < mi.meshes.count; i++) {
-			mi.meshes.raw_offset[i] = reinterpret_cast<hd2::meshoffset_u const*>(mi.meshes.raw + 1) + i;
-			mi.meshes.raw_crc[i]    = reinterpret_cast<uint32_t const*>(reinterpret_cast<uint8_t const*>(mi.meshes.raw + 1) + sizeof(hd2::meshoffset_u) * mi.meshes.count) + i;
-			mi.meshes.raw_info[i]   = reinterpret_cast<hd2::meshinfo_u const*>(reinterpret_cast<uint8_t const*>(mi.meshes.raw) + sizeof(hd2::meshtable_u) + mi.meshes.raw_offset[i]->s.offset);
-		}
-
-		// Parse raw information from memory.
-		for (size_t i = 0; i < mi.meshes.count; i++) {
-			auto& crc  = mi.meshes.crc[i];
-			auto  rcrc = mi.meshes.raw_crc[i];
-			crc        = *rcrc;
-
-			auto& mesh  = mi.meshes.info[i];
-			auto  rmesh = mi.meshes.raw_info[i];
-			mesh.raw    = rmesh;
-
-			mesh.indices_offset = rmesh->s.idx_offset;
-			mesh.indices_count  = rmesh->s.idx_count;
-
-			mesh.vertices_offset = rmesh->s.vtx_offset;
-			mesh.vertices_count  = rmesh->s.vtx_count;
-
-			// Find the matching data type entry.
-			mesh.datatype_idx = -1;
-			for (size_t j = 0; j < mi.materials.count; j++) {
-				if (mesh.raw->s.datatype_hash == mi.materials.datatype_hashes[j]) {
-					mesh.datatype_idx = j;
-					break;
+					switch (datatype.vertices_stride()) {
+					case sizeof(hd2::vertex20_t): {
+						hd2::vertex20_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_ptr);
+						fprintf(file.get(), "v  %#16.8g %#16.8g %#16.8g\n", (float)vtx->x * hd2::mesh_scale, (float)vtx->y * hd2::mesh_scale, (float)vtx->z * hd2::mesh_scale);
+						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u, (float)vtx->v);
+						break;
+					}
+					case sizeof(hd2::vertex24_t): {
+						hd2::vertex24_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_ptr);
+						fprintf(file.get(), "v  %#16.8g %#16.8g %#16.8g\n", (float)vtx->x * hd2::mesh_scale, (float)vtx->y * hd2::mesh_scale, (float)vtx->z * hd2::mesh_scale);
+						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u, (float)vtx->v);
+						break;
+					}
+					case sizeof(hd2::vertex28_t): {
+						hd2::vertex28_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_ptr);
+						fprintf(file.get(), "v  %#16.8g %#16.8g %#16.8g\n", (float)vtx->x * hd2::mesh_scale, (float)vtx->y * hd2::mesh_scale, (float)vtx->z * hd2::mesh_scale);
+						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u, (float)vtx->v);
+						break;
+					}
+					case sizeof(hd2::vertex32_t): {
+						hd2::vertex32_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_ptr);
+						fprintf(file.get(), "v  %#16.8g %#16.8g %#16.8g\n", (float)vtx->x * hd2::mesh_scale, (float)vtx->y * hd2::mesh_scale, (float)vtx->z * hd2::mesh_scale);
+						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u, (float)vtx->v);
+						break;
+					}
+					case sizeof(hd2::vertex36_t): {
+						hd2::vertex36_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_ptr);
+						fprintf(file.get(), "v  %#16.8g %#16.8g %#16.8g\n", (float)vtx->x * hd2::mesh_scale, (float)vtx->y * hd2::mesh_scale, (float)vtx->z * hd2::mesh_scale);
+						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u, (float)vtx->v);
+						break;
+					}
+					case sizeof(hd2::vertex40_t): {
+						hd2::vertex40_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_ptr);
+						fprintf(file.get(), "v  %#16.8g %#16.8g %#16.8g\n", (float)vtx->x * hd2::mesh_scale, (float)vtx->y * hd2::mesh_scale, (float)vtx->z * hd2::mesh_scale);
+						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u, (float)vtx->v);
+						break;
+					}
+					}
 				}
 			}
+			fflush(file.get());
+
+			{ // Write all faces.
+				std::ptrdiff_t ptr         = datatype.indices_offset() + mesh.modeldata().indices_offset() * datatype.indices_stride();
+				std::ptrdiff_t max_ptr     = ptr + mesh.modeldata().indices_count() * datatype.indices_stride();
+				std::ptrdiff_t abs_max_ptr = datatype.indices_offset() + datatype.indices_size();
+
+				bool is_error_ptr = false;
+				if (ptr > abs_max_ptr) {
+					printf("  ptr > abs_max_ptr\n");
+					is_error_ptr = true;
+				} else if (max_ptr > abs_max_ptr) {
+					printf("  max_ptr > abs_max_ptr\n");
+					is_error_ptr = true;
+				}
+				if (is_error_ptr) {
+					printf("  ptr =         %08zx", ptr);
+					printf("  max_ptr =     %08zx", max_ptr);
+					printf("  abs_max_ptr = %08zx", abs_max_ptr);
+					continue;
+				}
+
+				for (size_t idx = 0; idx < mesh.modeldata().indices_count(); idx += 3) {
+					auto idx_ptr = reinterpret_cast<uint8_t const*>(mesh_ptr + ptr + datatype.indices_stride() * idx);
+					fprintf(file.get(), "# %zu\n", idx);
+
+					switch (datatype.indices_stride()) {
+					case 1: {
+						auto v0 = *reinterpret_cast<uint8_t const*>(idx_ptr + datatype.indices_stride() * 0) + 1;
+						auto v1 = *reinterpret_cast<uint8_t const*>(idx_ptr + datatype.indices_stride() * 1) + 1;
+						auto v2 = *reinterpret_cast<uint8_t const*>(idx_ptr + datatype.indices_stride() * 2) + 1;
+						fprintf(file.get(), "f %3" PRIu8 "/%3" PRIu8 "/%3" PRIu8 " %3" PRIu8 "/%3" PRIu8 "/%3" PRIu8 " %3" PRIu8 "/%3" PRIu8 "/%3" PRIu8 "\n", v0, v0, v0, v1, v1, v1, v2, v2, v2);
+						break;
+					}
+					case 2: {
+						auto v0 = *reinterpret_cast<uint16_t const*>(idx_ptr + datatype.indices_stride() * 0) + 1;
+						auto v1 = *reinterpret_cast<uint16_t const*>(idx_ptr + datatype.indices_stride() * 1) + 1;
+						auto v2 = *reinterpret_cast<uint16_t const*>(idx_ptr + datatype.indices_stride() * 2) + 1;
+						fprintf(file.get(), "f %5" PRIu16 "/%5" PRIu16 "/%5" PRIu16 " %5" PRIu16 "/%5" PRIu16 "/%5" PRIu16 " %5" PRIu16 "/%5" PRIu16 "/%5" PRIu16 "\n", v0, v0, v0, v1, v1, v1, v2, v2, v2);
+						break;
+					}
+					case 4: {
+						auto v0 = *reinterpret_cast<uint32_t const*>(idx_ptr + datatype.indices_stride() * 0) + 1;
+						auto v1 = *reinterpret_cast<uint32_t const*>(idx_ptr + datatype.indices_stride() * 1) + 1;
+						auto v2 = *reinterpret_cast<uint32_t const*>(idx_ptr + datatype.indices_stride() * 2) + 1;
+						fprintf(file.get(), "f %10" PRIu32 "/%10" PRIu32 "/%10" PRIu32 " %10" PRIu32 "/%10" PRIu32 "/%10" PRIu32 " %10" PRIu32 "/%10" PRIu32 "/%10" PRIu32 "\n", v0, v0, v0, v1, v1, v1, v2, v2, v2);
+						break;
+					}
+					case 8: {
+						auto v0 = *reinterpret_cast<uint64_t const*>(idx_ptr + datatype.indices_stride() * 0) + 1;
+						auto v1 = *reinterpret_cast<uint64_t const*>(idx_ptr + datatype.indices_stride() * 1) + 1;
+						auto v2 = *reinterpret_cast<uint64_t const*>(idx_ptr + datatype.indices_stride() * 2) + 1;
+						fprintf(file.get(), "f %20" PRIu64 "/%20" PRIu64 "/%20" PRIu64 " %20" PRIu64 "/%20" PRIu64 "/%20" PRIu64 " %20" PRIu64 "/%20" PRIu64 "/%20" PRIu64 "\n", v0, v0, v0, v1, v1, v1, v2, v2, v2);
+						break;
+					}
+					}
+				}
+			}
+			fflush(file.get());
+
+			file.reset();
 		}
 	}
-
-	for (size_t i = 0; i < mi.meshes.count; i++) { // Write test mesh.
-		// Grab necessary information
-		auto const& mesh     = mi.meshes.info[i];
-		auto const& datatype = mi.datatypes.info[mesh.datatype_idx];
-
-		// Generate name.
-		std::string filename;
-		{
-			const char*       format = "mesh_%04" PRIu32 ".obj";
-			std::vector<char> buf;
-			size_t            bufsz = snprintf(nullptr, 0, format, i);
-			buf.resize(bufsz + 1);
-			snprintf(buf.data(), buf.size(), format, i);
-			filename = {buf.data(), buf.data() + buf.size() - 1};
-		}
-
-		std::cout << filename << std::endl;
-		std::cout << "  Type: " << datatype.vertex_stride << std::endl;
-		std::cout << "  Indices: " << mesh.indices_count << "/" << datatype.index_count << std::endl;
-		std::cout << "  Vertices: " << mesh.vertices_count << "/" << datatype.vertex_count << std::endl;
-
-		// open file.
-		std::ofstream output{filename};
-
-		output << "o " << filename << std::endl;
-		output << "g " << filename << std::endl;
-
-		// Smooth shading
-		output << "s 1" << std::endl;
-
-		output.flush();
-
-		uint8_t const* vtx_max_addr      = mesh_ptr + datatype.vertex_offset + datatype.vertex_size;
-		uint8_t const* vtx_addr          = mesh_ptr + datatype.vertex_offset + mesh.vertices_offset * datatype.vertex_stride;
-		uint8_t const* vtx_mesh_max_addr = mesh_ptr + datatype.vertex_offset + mesh.vertices_offset * datatype.vertex_stride + mesh.vertices_count * datatype.vertex_stride;
-
-		if (vtx_mesh_max_addr > vtx_max_addr) {
-			std::cerr << "Vertex list malformed, skipping." << std::endl;
-			auto fmtflags = std::cerr.flags();
-			std::cerr << "  0x";
-			std::cerr << std::setfill('0') << std::setw(sizeof(size_t)) << std::right << std::hex << reinterpret_cast<std::intptr_t>(mesh_ptr);
-			std::cerr.flags(fmtflags);
-			std::cerr << std::endl;
-			std::cerr << "  0x";
-			std::cerr << std::setfill('0') << std::setw(sizeof(size_t)) << std::right << std::hex << reinterpret_cast<std::intptr_t>(vtx_addr);
-			std::cerr.flags(fmtflags);
-			std::cerr << std::endl;
-			std::cerr << "  0x";
-			std::cerr << std::setfill('0') << std::setw(sizeof(size_t)) << std::right << std::hex << reinterpret_cast<std::intptr_t>(vtx_max_addr);
-			std::cerr.flags(fmtflags);
-			std::cerr << std::endl;
-			std::cerr << "  0x";
-			std::cerr << std::setfill('0') << std::setw(sizeof(size_t)) << std::right << std::hex << reinterpret_cast<std::intptr_t>(vtx_mesh_max_addr);
-			std::cerr.flags(fmtflags);
-			std::cerr << std::endl;
-			continue;
-		}
-
-		for (size_t j = 0; j < mesh.vertices_count; j++, vtx_addr += datatype.vertex_stride) {
-			if (vtx_addr >= vtx_max_addr) {
-				std::cerr << "Error: Vertex address out of bounds for data type group." << std::endl;
-				auto fmtflags = std::cerr.flags();
-				std::cerr << "  0x";
-				std::cerr << std::setfill('0') << std::setw(sizeof(size_t)) << std::right << std::hex << reinterpret_cast<std::intptr_t>(mesh_ptr);
-				std::cerr.flags(fmtflags);
-				std::cerr << std::endl;
-				std::cerr << "  0x";
-				std::cerr << std::setfill('0') << std::setw(sizeof(size_t)) << std::right << std::hex << reinterpret_cast<std::intptr_t>(vtx_addr);
-				std::cerr.flags(fmtflags);
-				std::cerr << " < 0x";
-				std::cerr << std::setfill('0') << std::setw(sizeof(size_t)) << std::right << std::hex << reinterpret_cast<std::intptr_t>(vtx_max_addr);
-				std::cerr.flags(fmtflags);
-				std::cerr << std::endl;
-				std::cerr << "  " << j << " <= " << mesh.vertices_count << std::endl;
-				std::cerr << "  " << (j + mesh.vertices_offset) << " <= " << datatype.vertex_count << std::endl;
-				return 1;
-			}
-
-			switch (datatype.vertex_stride) {
-			case sizeof(hd2::vertex20_t): {
-				hd2::vertex20_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_addr);
-				output << "# " << j << std::endl;
-				output << "v " << (float)vtx->x * hd2::mesh_scale << " " << (float)vtx->y * hd2::mesh_scale << " " << (float)vtx->z * hd2::mesh_scale << std::endl;
-				output << "vt " << (float)vtx->u << " " << (float)vtx->v << std::endl;
-
-				break;
-			}
-			case sizeof(hd2::vertex24_t): {
-				hd2::vertex24_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_addr);
-				output << "# " << j << std::endl;
-				output << "v " << (float)vtx->x * hd2::mesh_scale << " " << (float)vtx->y * hd2::mesh_scale << " " << (float)vtx->z * hd2::mesh_scale << std::endl;
-				output << "vt " << (float)vtx->u << " " << (float)vtx->v << std::endl;
-
-				break;
-			}
-			case sizeof(hd2::vertex28_t): {
-				hd2::vertex28_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_addr);
-				output << "# " << j << std::endl;
-				output << "v " << (float)vtx->x * hd2::mesh_scale << " " << (float)vtx->y * hd2::mesh_scale << " " << (float)vtx->z * hd2::mesh_scale << std::endl;
-				output << "vt " << (float)vtx->u << " " << (float)vtx->v << std::endl;
-
-				break;
-			}
-			case sizeof(hd2::vertex32_t): {
-				hd2::vertex32_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_addr);
-				output << "# " << j << std::endl;
-				output << "v " << (float)vtx->x * hd2::mesh_scale << " " << (float)vtx->y * hd2::mesh_scale << " " << (float)vtx->z * hd2::mesh_scale << std::endl;
-				output << "vt " << (float)vtx->u << " " << (float)vtx->v << std::endl;
-
-				break;
-			}
-			case sizeof(hd2::vertex36_t): {
-				hd2::vertex36_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_addr);
-				output << "# " << j << std::endl;
-				output << "v " << (float)vtx->x * hd2::mesh_scale << " " << (float)vtx->y * hd2::mesh_scale << " " << (float)vtx->z * hd2::mesh_scale << std::endl;
-				output << "vt " << (float)vtx->u << " " << (float)vtx->v << std::endl;
-
-				break;
-			}
-			case sizeof(hd2::vertex40_t): {
-				hd2::vertex40_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_addr);
-				output << "# " << j << std::endl;
-				output << "v " << (float)vtx->x * hd2::mesh_scale << " " << (float)vtx->y * hd2::mesh_scale << " " << (float)vtx->z * hd2::mesh_scale << std::endl;
-				output << "vt " << (float)vtx->u << " " << (float)vtx->v << std::endl;
-
-				break;
-			}
-			}
-		}
-
-		output.flush();
-
-		uint8_t const* idx_max_addr      = mesh_ptr + datatype.index_offset + datatype.index_size;
-		uint8_t const* idx_addr          = mesh_ptr + datatype.index_offset + mesh.indices_offset * sizeof(hd2::index_t);
-		uint8_t const* idx_mesh_max_addr = mesh_ptr + datatype.index_offset + mesh.indices_offset * sizeof(hd2::index_t) + mesh.vertices_count * sizeof(hd2::index_t);
-
-		if (idx_mesh_max_addr > idx_max_addr) {
-			std::cerr << "Indices List malformed, skipping." << std::endl;
-			auto fmtflags = std::cerr.flags();
-			std::cerr << "  0x";
-			std::cerr << std::setfill('0') << std::setw(sizeof(size_t)) << std::right << std::hex << reinterpret_cast<std::intptr_t>(mesh_ptr);
-			std::cerr.flags(fmtflags);
-			std::cerr << std::endl;
-			std::cerr << "  0x";
-			std::cerr << std::setfill('0') << std::setw(sizeof(size_t)) << std::right << std::hex << reinterpret_cast<std::intptr_t>(idx_addr);
-			std::cerr.flags(fmtflags);
-			std::cerr << std::endl;
-			std::cerr << "  0x";
-			std::cerr << std::setfill('0') << std::setw(sizeof(size_t)) << std::right << std::hex << reinterpret_cast<std::intptr_t>(idx_max_addr);
-			std::cerr.flags(fmtflags);
-			std::cerr << std::endl;
-			std::cerr << "  0x";
-			std::cerr << std::setfill('0') << std::setw(sizeof(size_t)) << std::right << std::hex << reinterpret_cast<std::intptr_t>(idx_mesh_max_addr);
-			std::cerr.flags(fmtflags);
-			std::cerr << std::endl;
-			continue;
-		}
-
-		for (size_t j = 0; j < mesh.indices_count; j += 3, idx_addr += sizeof(hd2::index_t) * 3) {
-			if (idx_addr >= idx_max_addr) {
-				std::cerr << "Error: Index address out of bounds for data type group." << std::endl;
-				auto fmtflags = std::cerr.flags();
-				std::cerr << "  0x";
-				std::cerr << std::setfill('0') << std::setw(sizeof(size_t)) << std::right << std::hex << reinterpret_cast<std::intptr_t>(mesh_ptr);
-				std::cerr.flags(fmtflags);
-				std::cerr << std::endl;
-				std::cerr << "  0x";
-				std::cerr << std::setfill('0') << std::setw(sizeof(size_t)) << std::right << std::hex << reinterpret_cast<std::intptr_t>(idx_addr);
-				std::cerr.flags(fmtflags);
-				std::cerr << std::endl;
-				std::cerr << "  0x";
-				std::cerr << std::setfill('0') << std::setw(sizeof(size_t)) << std::right << std::hex << reinterpret_cast<std::intptr_t>(idx_max_addr);
-				std::cerr.flags(fmtflags);
-				std::cerr << std::endl;
-				std::cerr << "  0x";
-				std::cerr << std::setfill('0') << std::setw(sizeof(size_t)) << std::right << std::hex << reinterpret_cast<std::intptr_t>(idx_mesh_max_addr);
-				std::cerr.flags(fmtflags);
-				std::cerr << std::endl;
-				std::cerr << "  " << j << " <= " << mesh.indices_count << std::endl;
-				std::cerr << "  " << (j + mesh.indices_offset) << " <= " << datatype.index_count << std::endl;
-				return 1;
-			}
-
-			hd2::index_t const* idx0 = reinterpret_cast<decltype(idx0)>(idx_addr);
-			hd2::index_t const* idx1 = reinterpret_cast<decltype(idx1)>(idx_addr + sizeof(hd2::index_t));
-			hd2::index_t const* idx2 = reinterpret_cast<decltype(idx2)>(idx_addr + sizeof(hd2::index_t) * 2);
-
-			output << "# " << j << std::endl;
-			output << "f ";
-			output << (1 + idx0->index) << "/" << (1 + idx0->index) << "/" << (1 + idx0->index) << " ";
-			output << (1 + idx1->index) << "/" << (1 + idx1->index) << "/" << (1 + idx1->index) << " ";
-			output << (1 + idx2->index) << "/" << (1 + idx2->index) << "/" << (1 + idx2->index) << std::endl;
-			//output << "f " << (1 + idx0->index) << " " << (1 + idx1->index) << " " << (1 + idx2->index) << std::endl;
-		}
-
-		output.flush();
-
-		output.close();
-	}*/
 
 	std::cout << std::endl;
 
