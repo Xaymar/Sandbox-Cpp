@@ -105,9 +105,8 @@ struct FILE_deleter {
 using file_t = shared_ptr_with_deleter<FILE, FILE_deleter>;
 
 namespace hd2 {
-	// Models are incredibly tiny, less than 1/10th of a world unit.
-	// So we scale them up to not lose precision during text export.
-	constexpr float mesh_scale = 10.;
+	// Models are very tiny, so this can be used to scale them up.
+	constexpr float mesh_scale = 1.;
 
 	class meshinfo_datatype {
 		uint8_t const* _ptr;
@@ -421,16 +420,9 @@ namespace hd2 {
 		}
 	};
 
-	struct index8_t {
-		uint8_t index;
-	};
-
-	struct index16_t {
-		uint16_t index;
-	};
-
-	struct index32_t {
-		uint32_t index;
+	struct vertex16_t {
+		float    x, y, z;
+		half     u, v;
 	};
 
 	struct vertex20_t {
@@ -454,10 +446,10 @@ namespace hd2 {
 	};
 
 	struct vertex32_t {
-		uint32_t __unk00; // Always 0xFFFFFFFF?
 		float    x, y, z;
-		uint32_t __unk01;
-		half     u, v;
+		uint32_t __unk00;
+		half     u0, v0;
+		half     u1, v1;
 		uint32_t __unk02[2];
 	};
 
@@ -553,18 +545,22 @@ int main(int argc, const char** argv)
 			auto mesh     = meshes.at(idx);
 			auto datatype = datatypes.at(mesh.datatype_index());
 			printf("- [%zu] Data Type: %" PRIu32 "\n", idx, mesh.datatype_index());
+
 			printf("  - %" PRIu32 " Vertices, Stride: %" PRIu32 ", ", mesh.modeldata().vertices_count(), datatype.vertices_stride());
 			printf("Offset: %08" PRIx32 ", ", mesh.modeldata().vertices_offset());
-			printf("From:   %08" PRIx32 ", ", mesh.modeldata().vertices_offset() + datatype.vertices_offset());
-			printf("To:   %08" PRIx32 "\n", mesh.modeldata().vertices_offset() + datatype.vertices_offset() + mesh.modeldata().vertices_count() * datatype.vertices_stride());
-			printf("  - %" PRIu32 " Indices, Stride: %" PRIu32 ", \n", mesh.modeldata().indices_count(), datatype.indices_stride());
+			printf("From: %08" PRIx32 ", ", mesh.modeldata().vertices_offset() + datatype.vertices_offset());
+			printf("To: %08" PRIx32 "\n", mesh.modeldata().vertices_offset() + datatype.vertices_offset() + mesh.modeldata().vertices_count() * datatype.vertices_stride());
+
+			printf("  - %" PRIu32 " Indices, Stride: %" PRIu32 ", ", mesh.modeldata().indices_count(), datatype.indices_stride());
 			printf("Offset: %08" PRIx32 ", ", mesh.modeldata().indices_offset());
 			printf("From: %08" PRIx32 ", ", mesh.modeldata().indices_offset() + datatype.indices_offset());
-			printf("To:   %08" PRIx32 "\n", mesh.modeldata().indices_offset() + datatype.indices_offset() + mesh.modeldata().indices_count() * datatype.indices_stride());
+			printf("To: %08" PRIx32 "\n", mesh.modeldata().indices_offset() + datatype.indices_offset() + mesh.modeldata().indices_count() * datatype.indices_stride());
+
 			printf("  - %" PRIu32 " Materials: ", mesh.material_count());
 			for (size_t jdx = 0; jdx < mesh.material_count(); jdx++) {
-				printf("%" PRIx32 ", ", jdx, mesh.material_at(jdx));
+				printf("%" PRIx32 ", ", mesh.material_at(jdx));
 			}
+			printf("\n");
 		}
 	}
 	printf("\n\n\n\n");
@@ -622,6 +618,12 @@ int main(int argc, const char** argv)
 					fprintf(file.get(), "# %zu\n", vtx);
 
 					switch (datatype.vertices_stride()) {
+					case sizeof(hd2::vertex16_t): {
+						hd2::vertex20_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_ptr);
+						fprintf(file.get(), "v  %#16.8g %#16.8g %#16.8g\n", (float)vtx->x * hd2::mesh_scale, (float)vtx->y * hd2::mesh_scale, (float)vtx->z * hd2::mesh_scale);
+						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u, (float)vtx->v);
+						break;
+					}
 					case sizeof(hd2::vertex20_t): {
 						hd2::vertex20_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_ptr);
 						fprintf(file.get(), "v  %#16.8g %#16.8g %#16.8g\n", (float)vtx->x * hd2::mesh_scale, (float)vtx->y * hd2::mesh_scale, (float)vtx->z * hd2::mesh_scale);
@@ -643,7 +645,7 @@ int main(int argc, const char** argv)
 					case sizeof(hd2::vertex32_t): {
 						hd2::vertex32_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_ptr);
 						fprintf(file.get(), "v  %#16.8g %#16.8g %#16.8g\n", (float)vtx->x * hd2::mesh_scale, (float)vtx->y * hd2::mesh_scale, (float)vtx->z * hd2::mesh_scale);
-						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u, (float)vtx->v);
+						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u0, (float)vtx->v0);
 						break;
 					}
 					case sizeof(hd2::vertex36_t): {
