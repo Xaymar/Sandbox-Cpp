@@ -12,6 +12,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <ios>
@@ -432,17 +433,17 @@ namespace hd2 {
 	};
 
 	struct vertex24_t {
-		uint32_t __unk00; // Always 0xFFFFFFFF?
 		float    x, y, z;
-		uint32_t __unk01;
-		half     u, v;
+		uint32_t __unk00;
+		half     u0, v0;
+		half     u1, v1;
 	};
 
 	struct vertex28_t {
-		float x, y, z;
+		float    x, y, z;
 		uint32_t __unk00;
-		half u0, v0;
-		half u1, v1; // Lightmap UVs?
+		half     u0, v0;
+		half     u1, v1; // Lightmap UVs?
 		uint32_t __unk01; // Looks like UVs, but isn't.
 	};
 
@@ -471,16 +472,31 @@ namespace hd2 {
 		uint32_t __unk02[3];
 	};
 
+	struct vertex60_t {
+		float    x, y, z;
+		uint32_t __unk00;
+		half     u0, v0;
+		half     u1, v1;
+		half     u2, v2;
+		half     nx, ny, nz;
+		uint16_t __unk02;
+		uint32_t __unk01[6];
+	};
 } // namespace hd2
 
 int main(int argc, const char** argv)
 {
-	if (argc < 3) {
+	if (argc < 2) {
 		return 1;
 	}
 
+	auto path          = std::filesystem::path{argv[1]};
+	auto meshinfo_path = path.replace_extension(".meshinfo");
+	auto mesh_path     = path.replace_extension(".mesh");
+	auto output_path   = path.replace_extension();
+
 #ifdef WIN32
-	win32_handle_t mesh_info_file(CreateFileA(argv[1], GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_RANDOM_ACCESS, NULL));
+	win32_handle_t mesh_info_file(CreateFileA(meshinfo_path.u8string().c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_RANDOM_ACCESS, NULL));
 	if (mesh_info_file.get() == INVALID_HANDLE_VALUE) {
 		return 1;
 	}
@@ -495,7 +511,7 @@ int main(int argc, const char** argv)
 		return 1;
 	}
 
-	win32_handle_t mesh_file(CreateFileA(argv[2], GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_RANDOM_ACCESS, NULL));
+	win32_handle_t mesh_file(CreateFileA(mesh_path.u8string().c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_RANDOM_ACCESS, NULL));
 	if (mesh_file.get() == INVALID_HANDLE_VALUE) {
 		return 1;
 	}
@@ -569,6 +585,8 @@ int main(int argc, const char** argv)
 	printf("\n\n\n\n");
 
 	{ // Export meshes.
+		std::filesystem::create_directories(output_path);
+
 		printf("Exporting Meshes...\n");
 		for (size_t idx = 0; idx < meshes.count(); idx++) {
 			printf("- [%zu] Exporting...\n", idx);
@@ -578,11 +596,11 @@ int main(int argc, const char** argv)
 			// Generate name.
 			std::string filename;
 			{
-				const char*       format = "./mesh_%08" PRIu32 ".obj";
+				const char*       format = "%s/%08" PRIu32 ".obj";
 				std::vector<char> buf;
-				size_t            bufsz = snprintf(nullptr, 0, format, idx);
+				size_t            bufsz = snprintf(nullptr, 0, format, output_path.u8string().c_str(), idx);
 				buf.resize(bufsz + 1);
-				snprintf(buf.data(), buf.size(), format, idx);
+				snprintf(buf.data(), buf.size(), format, output_path.u8string().c_str(), idx);
 				filename = {buf.data(), buf.data() + buf.size() - 1};
 			}
 
@@ -638,8 +656,8 @@ int main(int argc, const char** argv)
 						hd2::vertex24_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_ptr);
 						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk00);
 						fprintf(file.get(), "v  %#16.8g %#16.8g %#16.8g\n", (float)vtx->x * hd2::mesh_scale, (float)vtx->y * hd2::mesh_scale, (float)vtx->z * hd2::mesh_scale);
-						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk01);
-						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u, 1. - (float)vtx->v);
+						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u0, 1. - (float)vtx->v0);
+						fprintf(file.get(), "# vt %#16.8g %#16.8g\n", (float)vtx->u1, 1. - (float)vtx->v1);
 						break;
 					}
 					case sizeof(hd2::vertex28_t): {
@@ -682,6 +700,22 @@ int main(int argc, const char** argv)
 						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk02[0]);
 						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk02[1]);
 						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk02[2]);
+						break;
+					}
+					case sizeof(hd2::vertex60_t): {
+						hd2::vertex60_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_ptr);
+						fprintf(file.get(), "v  %#16.8g %#16.8g %#16.8g\n", (float)vtx->x * hd2::mesh_scale, (float)vtx->y * hd2::mesh_scale, (float)vtx->z * hd2::mesh_scale);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk00);
+						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u0, 1. - (float)vtx->v0);
+						fprintf(file.get(), "# vt %#16.8g %#16.8g\n", (float)vtx->u1, 1. - (float)vtx->v1);
+						fprintf(file.get(), "# vt %#16.8g %#16.8g\n", (float)vtx->u2, 1. - (float)vtx->v2);
+						fprintf(file.get(), "vn %#16.8g %#16.8g %#16.8g # %#16.8g\n", (float)vtx->nx, (float)vtx->ny, (float)vtx->nz, (float)vtx->nx + (float)vtx->ny + (float)vtx->nz);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk01[0]);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk01[1]);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk01[2]);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk01[3]);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk01[4]);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk01[5]);
 						break;
 					}
 					}
