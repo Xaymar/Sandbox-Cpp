@@ -421,8 +421,8 @@ namespace hd2 {
 	};
 
 	struct vertex16_t {
-		float    x, y, z;
-		half     u, v;
+		float x, y, z;
+		half  u, v;
 	};
 
 	struct vertex20_t {
@@ -439,10 +439,11 @@ namespace hd2 {
 	};
 
 	struct vertex28_t {
-		float    x, y, z;
+		float x, y, z;
 		uint32_t __unk00;
-		half     u, v;
-		half     n[4];
+		half u0, v0;
+		half u1, v1; // Lightmap UVs?
+		uint32_t __unk01; // Looks like UVs, but isn't.
 	};
 
 	struct vertex32_t {
@@ -450,22 +451,24 @@ namespace hd2 {
 		uint32_t __unk00;
 		half     u0, v0;
 		half     u1, v1;
-		uint32_t __unk02[2];
+		uint32_t __unk01[2];
 	};
 
 	struct vertex36_t {
 		float    x, y, z;
 		uint32_t __unk00;
-		half     u, v;
-		uint32_t __unk01[4];
+		half     u0, v0;
+		half     u1, v1;
+		uint32_t __unk01[3];
 	};
 
 	struct vertex40_t {
 		uint32_t __unk00; // Always 0xFFFFFFFF?
 		float    x, y, z;
 		uint32_t __unk01;
-		half     u, v;
-		uint32_t __unk02[4];
+		half     u0, v0;
+		half     u1, v1;
+		uint32_t __unk02[3];
 	};
 
 } // namespace hd2
@@ -519,7 +522,7 @@ int main(int argc, const char** argv)
 		printf("%" PRIu32 " Materials: \n", materials.count());
 		for (size_t idx = 0; idx < materials.count(); idx++) {
 			auto material = materials.at(idx);
-			printf("- [%zu] %04" PRIx32 " = %" PRIx64 "\n", idx, material.first, material.second);
+			printf("- [%zu] %08" PRIx32 " = %" PRIx64 "\n", idx, material.first, material.second);
 		}
 	}
 
@@ -590,7 +593,7 @@ int main(int argc, const char** argv)
 			// Write overall data.
 			fprintf(file.get(), "o %s\n", filename.c_str());
 			fprintf(file.get(), "g %s\n", filename.c_str());
-			fprintf(file.get(), "s 1\n");
+			fprintf(file.get(), "s 0\n");
 			fflush(file.get());
 
 			{ // Write all vertices.
@@ -621,43 +624,64 @@ int main(int argc, const char** argv)
 					case sizeof(hd2::vertex16_t): {
 						hd2::vertex20_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_ptr);
 						fprintf(file.get(), "v  %#16.8g %#16.8g %#16.8g\n", (float)vtx->x * hd2::mesh_scale, (float)vtx->y * hd2::mesh_scale, (float)vtx->z * hd2::mesh_scale);
-						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u, (float)vtx->v);
+						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u, 1. - (float)vtx->v);
 						break;
 					}
 					case sizeof(hd2::vertex20_t): {
 						hd2::vertex20_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_ptr);
 						fprintf(file.get(), "v  %#16.8g %#16.8g %#16.8g\n", (float)vtx->x * hd2::mesh_scale, (float)vtx->y * hd2::mesh_scale, (float)vtx->z * hd2::mesh_scale);
-						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u, (float)vtx->v);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk00);
+						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u, 1. - (float)vtx->v);
 						break;
 					}
 					case sizeof(hd2::vertex24_t): {
 						hd2::vertex24_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_ptr);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk00);
 						fprintf(file.get(), "v  %#16.8g %#16.8g %#16.8g\n", (float)vtx->x * hd2::mesh_scale, (float)vtx->y * hd2::mesh_scale, (float)vtx->z * hd2::mesh_scale);
-						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u, (float)vtx->v);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk01);
+						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u, 1. - (float)vtx->v);
 						break;
 					}
 					case sizeof(hd2::vertex28_t): {
 						hd2::vertex28_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_ptr);
 						fprintf(file.get(), "v  %#16.8g %#16.8g %#16.8g\n", (float)vtx->x * hd2::mesh_scale, (float)vtx->y * hd2::mesh_scale, (float)vtx->z * hd2::mesh_scale);
-						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u, (float)vtx->v);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk00);
+						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u0, 1. - (float)vtx->v0);
+						fprintf(file.get(), "# vt %#16.8g %#16.8g\n", (float)vtx->u1, 1. - (float)vtx->v1);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk01);
 						break;
 					}
 					case sizeof(hd2::vertex32_t): {
 						hd2::vertex32_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_ptr);
 						fprintf(file.get(), "v  %#16.8g %#16.8g %#16.8g\n", (float)vtx->x * hd2::mesh_scale, (float)vtx->y * hd2::mesh_scale, (float)vtx->z * hd2::mesh_scale);
-						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u0, (float)vtx->v0);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk00);
+						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u0, 1. - (float)vtx->v0);
+						fprintf(file.get(), "# vt %#16.8g %#16.8g\n", (float)vtx->u1, 1. - (float)vtx->v1);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk01[0]);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk01[1]);
 						break;
 					}
 					case sizeof(hd2::vertex36_t): {
 						hd2::vertex36_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_ptr);
 						fprintf(file.get(), "v  %#16.8g %#16.8g %#16.8g\n", (float)vtx->x * hd2::mesh_scale, (float)vtx->y * hd2::mesh_scale, (float)vtx->z * hd2::mesh_scale);
-						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u, (float)vtx->v);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk00);
+						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u0, 1. - (float)vtx->v0);
+						fprintf(file.get(), "# vt %#16.8g %#16.8g\n", (float)vtx->u1, 1. - (float)vtx->v1);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk01[0]);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk01[1]);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk01[2]);
 						break;
 					}
 					case sizeof(hd2::vertex40_t): {
 						hd2::vertex40_t const* vtx = reinterpret_cast<decltype(vtx)>(vtx_ptr);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk00);
 						fprintf(file.get(), "v  %#16.8g %#16.8g %#16.8g\n", (float)vtx->x * hd2::mesh_scale, (float)vtx->y * hd2::mesh_scale, (float)vtx->z * hd2::mesh_scale);
-						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u, (float)vtx->v);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk01);
+						fprintf(file.get(), "vt %#16.8g %#16.8g\n", (float)vtx->u0, 1. - (float)vtx->v0);
+						fprintf(file.get(), "# vt %#16.8g %#16.8g\n", (float)vtx->u1, 1. - (float)vtx->v1);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk02[0]);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk02[1]);
+						fprintf(file.get(), "# ?? %08" PRIx32 "\n", vtx->__unk02[2]);
 						break;
 					}
 					}
