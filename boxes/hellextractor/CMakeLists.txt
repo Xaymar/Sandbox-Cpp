@@ -17,3 +17,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 	CXX_STANDARD_REQUIRED ON
 	CXX_EXTENSIONS OFF
 )
+
+if(WIN32)
+	target_link_libraries(${PROJECT_NAME} PRIVATE "bcrypt")
+endif()
