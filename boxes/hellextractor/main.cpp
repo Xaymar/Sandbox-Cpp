@@ -167,7 +167,7 @@ namespace hd2 {
 		_04_unknown        = 0x04, // 4 bytes, ??
 		_14_long4          = 0x14, // 32 bytes, (u)int32_t[4]
 		_18_byte4          = 0x18, // 4 bytes, (u)int8_t[4]
-		_19_unknown        = 0x19, // ?? bytes, ??
+		_19_unknown        = 0x19, // 4 bytes, ??
 		_1A_unknown        = 0x1A, // 4 bytes, ??
 		_1C_implied_half   = 0x1C, // 2 bytes, implied
 		_1D_half2          = 0x1D, // 4 bytes
@@ -198,6 +198,9 @@ namespace hd2 {
 			return 16;
 
 		case hd2::vertex_element_format::_18_byte4:
+			return 4;
+
+		case hd2::vertex_element_format::_19_unknown:
 			return 4;
 
 		case hd2::vertex_element_format::_1A_unknown:
@@ -704,7 +707,6 @@ int main(int argc, const char** argv)
 			printf("\n");
 		}
 	}
-	printf("\n\n\n\n");
 
 	auto dt_path = std::filesystem::absolute(output_path.parent_path() / "../datatypes");
 	{ // Export raw datatypes
@@ -849,12 +851,12 @@ int main(int argc, const char** argv)
 							}
 
 							default:
-								printf("ERROR: type+format %08x, %08x, %08x, %08x, %08x is unknown\n", element.type, element.format, element.layer, element.__unk00, element.__unk01);
-								printf(" DUMP: ");
+								fprintf(file.get(), "# ERROR: type+format %08x, %08x, %08x, %08x, %08x is unknown\n", element.type, element.format, element.layer, element.__unk00, element.__unk01);
+								fprintf(file.get(), "#  DUMP: ");
 								for (size_t n = 0; n < hd2::vertex_element_format_size(element.format); n++) {
-									printf("%02X", *(vtx_ptr + n));
+									fprintf(file.get(), "%02X", *(vtx_ptr + n));
 								}
-								printf("\n");
+								fprintf(file.get(), "\n");
 							}
 							break;
 						}
@@ -888,12 +890,12 @@ int main(int argc, const char** argv)
 							}
 
 							default:
-								printf("ERROR: type+format %08x, %08x, %08x, %08x, %08x is unknown\n", element.type, element.format, element.layer, element.__unk00, element.__unk01);
-								printf(" DUMP: ");
+								fprintf(file.get(), "# ERROR: type+format %08x, %08x, %08x, %08x, %08x is unknown\n", element.type, element.format, element.layer, element.__unk00, element.__unk01);
+								fprintf(file.get(), "#  DUMP: ");
 								for (size_t n = 0; n < hd2::vertex_element_format_size(element.format); n++) {
-									printf("%02X", *(vtx_ptr + n));
+									fprintf(file.get(), "%02X", *(vtx_ptr + n));
 								}
-								printf("\n");
+								fprintf(file.get(), "\n");
 							}
 							break;
 						}
@@ -916,23 +918,23 @@ int main(int argc, const char** argv)
 							}
 
 							default:
-								printf("ERROR: type+format %08x, %08x, %08x, %08x, %08x is unknown\n", element.type, element.format, element.layer, element.__unk00, element.__unk01);
-								printf(" DUMP: ");
+								fprintf(file.get(), "# ERROR: type+format %08x, %08x, %08x, %08x, %08x is unknown\n", element.type, element.format, element.layer, element.__unk00, element.__unk01);
+								fprintf(file.get(), "#  DUMP: ");
 								for (size_t n = 0; n < hd2::vertex_element_format_size(element.format); n++) {
-									printf("%02X", *(vtx_ptr + n));
+									fprintf(file.get(), "%02X", *(vtx_ptr + n));
 								}
-								printf("\n");
+								fprintf(file.get(), "\n");
 							}
 							break;
 						}
 
 						default:
-							printf("ERROR: type %08x, %08x, %08x, %08x, %08x is unknown\n", element.type, element.format, element.layer, element.__unk00, element.__unk01);
-							printf(" DUMP: ");
+							fprintf(file.get(), "# ERROR: type %08x, %08x, %08x, %08x, %08x is unknown\n", element.type, element.format, element.layer, element.__unk00, element.__unk01);
+							fprintf(file.get(), "#  DUMP: ");
 							for (size_t n = 0; n < hd2::vertex_element_format_size(element.format); n++) {
-								printf("%02X", *(vtx_ptr + n));
+								fprintf(file.get(), "%02X", *(vtx_ptr + n));
 							}
-							printf("\n");
+							fprintf(file.get(), "\n");
 						}
 
 						vtx_ptr += hd2::vertex_element_format_size(element.format);
