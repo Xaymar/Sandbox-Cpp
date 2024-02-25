@@ -1,3 +1,6 @@
 [submodule "thirdparty/xmr-utility-profiler"]
 	path = thirdparty/xmr-utility-profiler
 	url = https://github.com/Xaymar/xmr-utility-profiler.git
+[submodule "boxes/hellextractor"]
+	path = boxes/hellextractor
+	url = https://github.com/Xaymar/Hellextractor
